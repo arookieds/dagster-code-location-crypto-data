@@ -1,0 +1,109 @@
+vars: {
+  d2-config: {
+    layout-engine: elk
+    theme-id: 200
+  }
+}
+style: {
+  fill: Black
+}
+direction: down
+
+classes: {
+  online: {
+    shape: cloud
+  }
+
+  animated: {
+    style: {
+      animated: true
+    }
+  }
+}
+
+internet: Public Internet {
+  icon: https://icons.terrastruct.com/essentials%2F140-internet.svg
+  
+  bina: Binance {
+    class: ["online"]
+  }
+  bybit: ByBit {
+    class: ["online"]
+  }
+  gate: Gate {
+    class: ["online"]
+  }
+  others: Others exchanges {
+    class: ["online"]
+  }
+}
+
+local: Local Cluster {
+  direction: down
+  icon: https://icons.terrastruct.com/essentials%2F112-server.svg
+  k8s: Kubernetes {
+    icon: https://icons.terrastruct.com/azure%2F_Companies%2FKubernetes.svg
+
+    dagster-instance: Dagster Instance {
+      icon: https://raw.githubusercontent.com/dagster-io/dagster/02a8ad8a7a46102a1310e6252f003669e6fa9fcc/docs/static/images/dagster-primary-mark.svg
+
+      daemon: Daemon {
+        icon: https://icons.terrastruct.com/tech%2F014-cpu.svg
+        
+        direction: right
+        scheduler: Scheduler
+        sensor: Sensor
+
+        queue: Run Queue
+
+        launcher: Run Launcher
+
+        scheduler -> queue {class: [animated]}
+        queue -> launcher {class: [animated]}
+        sensor -> queue {class: [animated]}
+        launcher -> _._.dagster-location.extract {class: [animated]}
+      }
+
+      web: Web Server {
+        icon: https://icons.terrastruct.com/tech%2F014-cpu.svg
+
+        launcher: Run Launcher
+
+        launcher -> _._.dagster-location.extract: manual trigger {class: [animated]}
+        launcher -> _._.dagster-location.transform: manual trigger {class: [animated]}
+      }
+    }
+    dagster-location: Dagster Code Location {
+      icon: https://raw.githubusercontent.com/dagster-io/dagster/02a8ad8a7a46102a1310e6252f003669e6fa9fcc/docs/static/images/dagster-primary-mark.svg
+      extract: Extract Job
+      transform: Transform Job
+    }
+    db: PostgreSQL {
+      icon: https://icons.terrastruct.com/dev%2Fpostgresql.svg
+
+      dagster-logs: Logs
+
+      data: Transformed Data
+    }
+  }
+  lxc: Linux Containers {
+    icon: https://linuxcontainers.org/static/img/containers.svg
+
+    minio: Minio {
+      icon: https://cdn.worldvectorlogo.com/logos/minio-1.svg
+      raw: Raw data {
+        icon: https://icons.terrastruct.com/tech%2F069-hard-drive.svg
+      } 
+    }
+  }
+}
+
+internet -> local.k8s.dagster-location.extract
+# internet.bina -> local.k8s.dagster-location.extract {class: [animated]}
+# internet.bybit -> local.k8s.dagster-location.extract {class: [animated]}
+# internet.gate -> local.k8s.dagster-location.extract {class: [animated]}
+# internet.others -> local.k8s.dagster-location.extract {class: [animated]}
+
+local.k8s.dagster-location.extract -> local.lxc.minio.raw
+local.lxc.minio.raw -> local.k8s.dagster-location.transform: raw data
+local.k8s.dagster-location.transform -> local.k8s.db.data
