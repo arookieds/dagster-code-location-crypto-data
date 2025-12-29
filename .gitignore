@@ -209,3 +209,6 @@ __marimo__/
 # Docs
 ## D2 svg
 *.svg
+
+# macOs
+**/.DS_Store
