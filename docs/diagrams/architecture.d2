@@ -5,105 +5,172 @@ vars: {
   }
 }
 style: {
-  fill: Black
+  fill: "#626266"
 }
 direction: down
 
 classes: {
   online: {
     shape: cloud
+    width: 135
+    height: 67
+    style: {
+      fill: "#234387"
+    }
   }
 
+  title: {
+    label.near: top-center
+  }
+  
+  rounded: {
+    style: {
+      border-radius: 20
+      font-size: 24
+    }  
+  }
+  
   animated: {
     style: {
       animated: true
+    }
+  }
+
+  manual: {
+    style: {
+      stroke: Blue
+      stroke-dash: 10
+    }
+  }
+
+  automatic: {
+    style: {
+      stroke: Green
+      stroke-dash: 10
+    }
+  }
+
+  logs: {
+    style: {
+      stroke: Grey
+      stroke-dash: 10
+    }
+  }
+
+  data: {
+    style: {
+      stroke: "#dfdfe6"
+      stroke-dash: 0
+    }
+  }
+  
+  jobs: {
+    style: {
+      fill: "#234387"
     }
   }
 }
 
 internet: Public Internet {
   icon: https://icons.terrastruct.com/essentials%2F140-internet.svg
+  class: [rounded; title]
   
   bina: Binance {
-    class: ["online"]
+    class: [online]
   }
   bybit: ByBit {
-    class: ["online"]
+    class: [online]
   }
   gate: Gate {
-    class: ["online"]
+    class: [online]
   }
   others: Others exchanges {
-    class: ["online"]
+    class: [online]
   }
 }
 
-local: Local Cluster {
-  direction: down
+local: Local Cluster - Proxmox {
   icon: https://icons.terrastruct.com/essentials%2F112-server.svg
+  class: [rounded; title]
+    
   k8s: Kubernetes {
     icon: https://icons.terrastruct.com/azure%2F_Companies%2FKubernetes.svg
-
+    class: [rounded; title]
+    
     dagster-instance: Dagster Instance {
       icon: https://raw.githubusercontent.com/dagster-io/dagster/02a8ad8a7a46102a1310e6252f003669e6fa9fcc/docs/static/images/dagster-primary-mark.svg
-
+      class: [rounded; title]
+      
       daemon: Daemon {
         icon: https://icons.terrastruct.com/tech%2F014-cpu.svg
+        class: [rounded; title]
         
-        direction: right
-        scheduler: Scheduler
-        sensor: Sensor
+        scheduler: Scheduler { class: [rounded; jobs] }
+        sensor: Sensor { class: [rounded; jobs] }
+        queue: Run Queue { class: [rounded; jobs] }
+        launcher: Run Launcher { class: [rounded; jobs] }
 
-        queue: Run Queue
-
-        launcher: Run Launcher
-
-        scheduler -> queue {class: [animated]}
-        queue -> launcher {class: [animated]}
-        sensor -> queue {class: [animated]}
-        launcher -> _._.dagster-location.extract {class: [animated]}
+        scheduler -> queue: queue job {class: [animated; automatic]}
+        queue -> launcher: dequeue job and launch it {class: [animated; automatic]}
+        sensor -> queue: queue job {class: [animated; automatic]}
+        launcher -> _._.dagster-location.assets.extract: automatic trigger {class: [animated; automatic]}
+        launcher -> _._.dagster-location.assets.transform: automatic trigger {class: [animated; automatic]}
       }
 
       web: Web Server {
         icon: https://icons.terrastruct.com/tech%2F014-cpu.svg
+        class: [rounded; title]
 
-        launcher: Run Launcher
+        launcher: Run Launcher { class: [rounded; jobs] }
 
-        launcher -> _._.dagster-location.extract: manual trigger {class: [animated]}
-        launcher -> _._.dagster-location.transform: manual trigger {class: [animated]}
+        launcher -> _._.dagster-location.assets.extract: manual trigger {class: [animated; manual]}
+        launcher -> _._.dagster-location.assets.transform: manual trigger {class: [animated; manual]}
       }
     }
     dagster-location: Dagster Code Location {
       icon: https://raw.githubusercontent.com/dagster-io/dagster/02a8ad8a7a46102a1310e6252f003669e6fa9fcc/docs/static/images/dagster-primary-mark.svg
-      extract: Extract Job
-      transform: Transform Job
+      class: [rounded; title]
+
+      assets: "" {
+        class: [rounded]
+        extract: Extract Job { class: [jobs; rounded] }
+        transform: Transform Job { class: [jobs; rounded] }
+      }
     }
     db: PostgreSQL {
       icon: https://icons.terrastruct.com/dev%2Fpostgresql.svg
+      class: [rounded; title]
 
-      dagster-logs: Logs
+      dagster-logs: Logs { class: [rounded] }
 
-      data: Transformed Data
+      data: Transformed Data { class: [rounded] }
     }
   }
   lxc: Linux Containers {
     icon: https://linuxcontainers.org/static/img/containers.svg
+    class: [rounded; title]
 
     minio: Minio {
       icon: https://cdn.worldvectorlogo.com/logos/minio-1.svg
+      class: [rounded; title]
       raw: Raw data {
         icon: https://icons.terrastruct.com/tech%2F069-hard-drive.svg
+        class: [rounded; title]
       } 
     }
   }
 }
 
-internet -> local.k8s.dagster-location.extract
-# internet.bina -> local.k8s.dagster-location.extract {class: [animated]}
-# internet.bybit -> local.k8s.dagster-location.extract {class: [animated]}
-# internet.gate -> local.k8s.dagster-location.extract {class: [animated]}
-# internet.others -> local.k8s.dagster-location.extract {class: [animated]}
+internet -> local.k8s.dagster-location.assets.extract: api calls { class: [data] }
 
-local.k8s.dagster-location.extract -> local.lxc.minio.raw
-local.lxc.minio.raw -> local.k8s.dagster-location.transform: raw data
-local.k8s.dagster-location.transform -> local.k8s.db.data
+# internet.bina -> internet { class: [animated]; near: bottom-center }
+# internet.bybit -> internet {class: [animated]; near: bottom-center }
+# internet.gate -> internet {class: [animated]; near: bottom-center }
+# internet.others -> internet {class: [animated]; near: bottom-center }
+
+local.k8s.dagster-location.assets.extract -> local.lxc.minio.raw: write json { class: [data] }
+local.lxc.minio.raw -> local.k8s.dagster-location.assets.transform: read json { class: [data] }
+local.k8s.dagster-location.assets.transform -> local.k8s.db.data: write to table { class: [data] }
+
+local.k8s.dagster-location.assets.extract -> local.k8s.db.dagster-logs: sending logs {class: [animated; logs]}
+local.k8s.dagster-location.assets.transform -> local.k8s.db.dagster-logs: sending logs {class: [animated; logs]}
