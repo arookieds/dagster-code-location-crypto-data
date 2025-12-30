@@ -1,20 +1,9 @@
-from ccxt.async_support.base.exchange import Exchange
 import uuid
-from sqlmodel import (
-    Field,
-    Session,
-    SQLModel,
-    UUID,
-    TEXT,
-    INTEGER,
-    BOOLEAN,
-    JSON,
-    FLOAT,
-    DOUBLE_PRECISION,
-)
+
+from sqlmodel import BOOLEAN, JSON, TEXT, UUID, Field, SQLModel
 
 
-class DagsterConfig(SQLModel, table=True):
+class DagsterConfig(SQLModel, table=True):  # type: ignore[call-arg]
     id: UUID | None = Field(default_factory=uuid.uuid7, primary_key=True)
     exchange: TEXT = Field(description="Name of the exchange")
     enabled: BOOLEAN = Field(description="Enable the exchange")
