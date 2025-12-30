@@ -396,6 +396,7 @@ name = "dagster-crypto-data"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "alembic" },
     { name = "boto3" },
     { name = "ccxt" },
     { name = "dagster" },
@@ -413,6 +414,7 @@ testing = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alembic", specifier = ">=1.17.2" },
     { name = "boto3", specifier = ">=1.42.17" },
     { name = "ccxt", specifier = ">=4.5.29" },
     { name = "dagster", specifier = ">=1.12.7" },

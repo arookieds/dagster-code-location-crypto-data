@@ -27,6 +27,7 @@ classifiers = [
   "Topic :: Software Development :: Testing :: Unit",
 ]
 dependencies = [
+  "alembic>=1.17.2",
   "boto3>=1.42.17",
   "ccxt>=4.5.29",
   "dagster>=1.12.7",
