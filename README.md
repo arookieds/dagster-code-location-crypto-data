@@ -16,6 +16,61 @@ Namespace: dagster
 8. [Troubleshooting](#8-troubleshooting)  
 9. [Maintenance](#9-maintenance)
 
+## **TODO List**
+
+### **Pipeline Implementation**
+- [x] Implement extract asset factory with Pydantic validation
+- [x] Implement transform asset factory with Narwhals/Polars
+- [x] Add comprehensive test suites (110 tests passing)
+- [ ] Implement load asset factory for PostgreSQL
+- [ ] Create custom IO Manager for MinIO/S3 storage
+- [ ] Wire up complete extract → transform → load pipeline in Definitions
+
+### **Data Quality & Governance**
+- [ ] Add Soda Core data quality checks
+- [ ] Define data contracts for ticker data
+- [ ] Implement data validation rules (nulls, ranges, types)
+- [ ] Add data quality tests between pipeline stages
+- [ ] Create data lineage documentation
+
+### **Infrastructure & DevOps**
+- [ ] Create Dockerfile for containerized deployment
+- [ ] Set up Kubernetes manifests (Helm + Kustomize)
+- [ ] Configure K8sRunLauncher for job execution
+- [ ] Implement secrets management (SealedSecrets)
+- [ ] Add CI/CD pipeline (GitHub Actions)
+
+### **Monitoring & Observability**
+- [ ] Add pipeline monitoring and alerting
+- [ ] Implement data freshness checks
+- [ ] Create operational dashboards
+- [ ] Add structured logging for all assets
+- [ ] Set up error notification system
+
+### **Documentation**
+- [ ] Create architecture diagram (D2 format)
+- [ ] Document data contracts and schemas
+- [ ] Add pipeline runbooks for operations
+- [ ] Create deployment guide
+- [ ] Document troubleshooting procedures
+
+### **Testing & Quality**
+- [ ] Add integration tests for full pipeline
+- [ ] Implement data quality regression tests
+- [ ] Add performance benchmarks
+- [ ] Create test data fixtures
+- [ ] Add end-to-end pipeline tests
+
+### **Future Enhancements**
+- [ ] Add support for additional exchanges (Kraken, Coinbase, etc.)
+- [ ] Implement incremental data loading
+- [ ] Add data versioning with lakeFS
+- [ ] Create semantic layer with Cube
+- [ ] Build self-service analytics with Superset
+- [ ] Implement real-time streaming pipeline
+
+---
+
 ## **1\. Overview**
 
 ### **1.1 Purpose**
