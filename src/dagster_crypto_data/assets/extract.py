@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import ccxt
@@ -107,6 +108,9 @@ def extract_asset_factory(
         context.log.info(f"Fetching tickers from {config.exchange_id}")
 
         try:
+            # Capture extraction timestamp
+            extraction_timestamp = datetime.now(UTC).isoformat()
+
             start_time = time.perf_counter()
             raw: dict[str, Any] = client.fetch_tickers()
             execution_time = time.perf_counter() - start_time
@@ -124,6 +128,15 @@ def extract_asset_factory(
             )
             raise
 
+        # Prepare output with metadata and data structure
+        output_data = {
+            "metadata": {
+                "timestamp": extraction_timestamp,
+                "exchange_id": config.exchange_id,
+            },
+            "data": raw,
+        }
+
         # Prepare metadata
         record_count = len(raw)
         sample = dict(list(raw.items())[:5])
@@ -133,10 +146,11 @@ def extract_asset_factory(
         )
 
         return Output(
-            value=raw,
+            value=output_data,
             metadata={
                 "record_count": MetadataValue.int(record_count),
                 "extraction_time_seconds": MetadataValue.float(execution_time),
+                "extraction_timestamp": MetadataValue.text(extraction_timestamp),
                 "sample_records": MetadataValue.json(sample),
                 "exchange_id": MetadataValue.text(config.exchange_id),
             },
