@@ -10,7 +10,7 @@ This is a **Dagster code location** for orchestrating crypto data pipelines. The
 - Transforms data into a relational format in PostgreSQL
 - Deploys as containerized code locations on Kubernetes using K8sRunLauncher
 
-**Tech Stack:** Python 3.14+, Dagster, Pydantic, SQLModel, CCXT, Boto3, PostgreSQL
+**Tech Stack:** Python 3.14+, Dagster, Pydantic, SQLModel, CCXT, Boto3, PostgreSQL, Structlog
 
 ---
 
@@ -65,10 +65,10 @@ uv run pytest
 uv run pytest -v
 
 # Run a single test file
-uv run pytest tests/test_file.py
+uv run pytest tests/test_database.py
 
 # Run a single test function
-uv run pytest tests/test_file.py::test_function_name
+uv run pytest tests/test_database.py::test_url_generation_sqlite
 
 # Run tests by marker
 uv run pytest -m unit
@@ -79,13 +79,16 @@ uv run pytest -m slow
 uv run pytest -k "test_extract"
 
 # Run tests with coverage report
-uv run pytest --cov=src.definitions --cov-report=term-missing
+uv run pytest --cov=dagster_crypto_data --cov-report=term-missing
 
 # Run tests and stop at first failure
 uv run pytest -x
 
 # Run tests and show local variables on failure
 uv run pytest -l
+
+# Run tests without coverage (faster for development)
+uv run pytest --no-cov
 ```
 
 ### Dagster Development
@@ -117,10 +120,13 @@ uv run dagster asset materialize <asset_name>
 Follow the **isort** profile for Black:
 
 ```python
+# Use __future__ imports when needed for forward references
+from __future__ import annotations
+
 # Standard library imports
 import os
 import sys
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
 # Third-party imports
 import dagster
@@ -131,13 +137,19 @@ from sqlmodel import Field, Session
 # Local/application imports
 from dagster_crypto_data.models import CryptoData
 from dagster_crypto_data.utils import fetch_data
+
+# TYPE_CHECKING imports (for type hints only, not runtime)
+if TYPE_CHECKING:
+    from sqlalchemy import Engine
 ```
 
 **Rules:**
+- Use `from __future__ import annotations` for forward references
 - Group imports: standard library → third-party → local
 - Sort alphabetically within each group
-- Use absolute imports for local modules (e.g., `from src.dagster_crypto_data`)
+- Use absolute imports for local modules (e.g., `from dagster_crypto_data`)
 - Unused imports in `__init__.py` files are allowed (Ruff ignores F401)
+- Use `TYPE_CHECKING` for imports only needed for type hints to avoid circular imports
 
 ### Type Annotations
 **CRITICAL:** All functions MUST have complete type annotations.
@@ -312,7 +324,7 @@ def raw_exchange_data(context: AssetExecutionContext) -> dict[str, Any]:
 
 ### Pydantic Models
 ```python
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, computed_field
 
 class OHLCVData(BaseModel):
     timestamp: int = Field(..., description="Unix timestamp in milliseconds")
@@ -321,6 +333,34 @@ class OHLCVData(BaseModel):
     low: float = Field(..., gt=0)
     close: float = Field(..., gt=0)
     volume: float = Field(..., ge=0)
+
+    @field_validator("timestamp")
+    @classmethod
+    def validate_timestamp(cls, v: int) -> int:
+        """Validate timestamp is positive."""
+        if v <= 0:
+            raise ValueError("Timestamp must be positive")
+        return v
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def price_range(self) -> float:
+        """Calculate price range (high - low)."""
+        return self.high - self.low
+```
+
+### Logging
+Use **structlog** for structured logging:
+
+```python
+from dagster_crypto_data.utils import get_logger
+
+# Get logger instance
+logger = get_logger(__name__, log_level="INFO", use_json=False)
+
+# Log with context
+logger.info("Processing data", exchange="binance", symbol="BTC/USDT")
+logger.error("Failed to fetch data", error=str(e), retry_count=3)
 ```
 
 ---
@@ -342,6 +382,29 @@ project/
 
 ---
 
+## Security Best Practices
+
+1. **Never hardcode credentials** - Use environment variables or Pydantic Settings
+2. **Use SecretStr** for sensitive fields in Pydantic models
+3. **Validate user inputs** - Use Pydantic validators to prevent injection attacks
+4. **Override `__repr__` and `__str__`** - Don't expose passwords in string representations
+5. **Use `PrivateAttr`** for internal state in Pydantic models
+
+```python
+from pydantic import BaseModel, Field, SecretStr, PrivateAttr
+
+class DatabaseConfig(BaseModel):
+    username: str
+    password: SecretStr = Field(default=SecretStr(""))
+    _engine: Engine | None = PrivateAttr(default=None)
+
+    def __repr__(self) -> str:
+        """Don't expose password in repr."""
+        return f"DatabaseConfig(username={self.username!r})"
+```
+
+---
+
 ## DO NOT
 
 1. ❌ Commit files containing secrets (`.env`, `credentials.json`, etc.)
@@ -350,6 +413,7 @@ project/
 4. ❌ Skip type annotations on functions
 5. ❌ Use relative imports for application code
 6. ❌ Ignore linter errors without good reason
+7. ❌ Expose passwords in `__repr__`, `__str__`, or logs
 
 ---
 
@@ -358,17 +422,21 @@ project/
 | Task | Command |
 |------|---------|
 | Install deps | `uv sync` |
+| Add dependency | `uv add <package>` |
+| Add dev dependency | `uv add --group testing <package>` |
 | Run linter | `uv run ruff check .` |
 | Auto-fix lint | `uv run ruff check --fix .` |
 | Format code | `uv run ruff format .` |
-| Type check | `uv run mypy src` |
+| Type check (mypy) | `uv run mypy src` |
+| Type check (pyright) | `uv run pyright src` |
 | Run all tests | `uv run pytest` |
-| Run single test | `uv run pytest tests/test_file.py::test_name` |
+| Run single test | `uv run pytest tests/test_database.py::test_url_generation_sqlite` |
+| Run tests (no cov) | `uv run pytest --no-cov` |
 | Start Dagster UI | `uv run dagster dev` |
 | Validate defs | `uv run dagster definitions validate` |
 
 ---
 
-**Last Updated:** 2025-12-28  
+**Last Updated:** 2025-12-31  
 **Dagster Module:** `src.definitions`  
 **Python Version:** 3.14+
