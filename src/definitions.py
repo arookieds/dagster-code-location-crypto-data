@@ -2,7 +2,7 @@ from dagster import Definitions
 
 from dagster_crypto_data.utils import get_logger, get_settings
 
-logger = get_logger()
+logger = get_logger(__name__)
 settings = get_settings()
 
 # Loading assets
