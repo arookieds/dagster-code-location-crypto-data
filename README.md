@@ -1,20 +1,81 @@
-# **Data Engineering \- Dagster Orchestration for Crypto Trading**
+# Dagster Crypto Data Pipeline
 
-Date Deployed: 2025-12-14  
-Version: Dagster 1.0  
-Namespace: dagster
+[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
+[![Dagster](https://img.shields.io/badge/dagster-1.12+-orange.svg)](https://dagster.io/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 
-## **Table of Contents**
+Production-grade cryptocurrency data pipeline orchestrated with Dagster. Extracts market data from exchanges, stores raw data in MinIO, transforms with Polars, and loads into PostgreSQL.
 
-1. [Overview](#1-overview)  
-2. [Prerequisites](#2-prerequisites)  
-3. [Deployment](#3-deployment)  
-4. [Kubernetes Resources](#4-kubernetes-resources)  
-5. [Configuration](#5-configuration)  
-6. [Networking](#6-networking)  
-7. [Data Management](#7-data-management)  
-8. [Troubleshooting](#8-troubleshooting)  
-9. [Maintenance](#9-maintenance)
+## 🚀 Quick Start
+
+```bash
+# Install dependencies
+uv sync
+
+# Start Dagster development server
+uv run dagster dev
+```
+
+Visit http://localhost:3000 to access the Dagster UI.
+
+## 📚 Documentation
+
+**Comprehensive documentation is available in the `docs/` directory.**
+
+To view the documentation locally:
+
+```bash
+# Serve documentation with MkDocs
+./serve-docs.sh
+
+# Or manually
+uv run mkdocs serve
+```
+
+Then open http://127.0.0.1:8000 in your browser.
+
+### Documentation Contents
+
+- **[Home](docs/index.md)**: Project overview and quick start
+- **[Architecture](docs/architecture.md)**: System design, data flow, and infrastructure
+- **[Setup Guide](docs/setup.md)**: Environment setup and configuration
+- **[Development Guide](docs/development.md)**: Development workflow and best practices
+- **[Deployment Guide](docs/deployment.md)**: Kubernetes deployment and operations
+- **[API Reference](docs/api/index.md)**: Code documentation and data contracts
+- **[Troubleshooting](docs/troubleshooting.md)**: Common issues and solutions
+
+## 🎯 Project Overview
+
+This Dagster code location implements a production-grade data pipeline:
+
+1. **Extract**: Fetch market data from cryptocurrency exchanges (Binance, ByBit, Gate.io)
+2. **Load**: Store raw JSON data in MinIO (S3-compatible object storage)
+3. **Transform**: Clean and validate data using Narwhals/Polars
+4. **Load**: Store structured data in PostgreSQL for analytics
+
+## ✨ Key Features
+
+- **Type-Safe**: Comprehensive Pydantic models with validation
+- **Tested**: 110+ unit and integration tests with >90% coverage
+- **Observable**: Structured logging with contextual information
+- **Resilient**: Retry logic, error handling, and graceful degradation
+- **Scalable**: Kubernetes-native with K8sRunLauncher
+- **Maintainable**: Clean code, comprehensive documentation
+
+## 🛠️ Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| **Orchestration** | Dagster 1.12+ |
+| **Data Processing** | Narwhals + Polars |
+| **Data Validation** | Pydantic 2.12+ |
+| **Exchange API** | CCXT 4.5+ |
+| **Object Storage** | MinIO / S3 |
+| **Database** | PostgreSQL 14+ |
+| **Testing** | Pytest 9.0+ |
+| **Container Runtime** | Kubernetes |
+
+## 📋 Table of Contents (Legacy README)
 
 ## **TODO List**
 
