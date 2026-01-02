@@ -1,0 +1,29 @@
+/* Custom styles for Dagster Crypto Data Pipeline documentation */
+
+/* Code blocks */
+.highlight {
+  border-radius: 4px;
+}
+
+/* Admonitions */
+.admonition {
+  border-radius: 4px;
+  margin: 1.5625em 0;
+}
+
+/* Tables */
+table {
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* Navigation */
+.md-nav__item--active > .md-nav__link {
+  font-weight: 600;
+}
+
+/* Custom colors for dark mode */
+[data-md-color-scheme="slate"] {
+  --md-code-bg-color: #1e1e1e;
+  --md-code-fg-color: #d4d4d4;
+}

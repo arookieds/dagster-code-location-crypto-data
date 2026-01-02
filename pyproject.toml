@@ -44,6 +44,11 @@ dependencies = [
 dagster-crypto-data = "dagster_crypto_data:main"
 
 [dependency-groups]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.7.1",
+    "pymdown-extensions>=10.20",
+]
 testing = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
