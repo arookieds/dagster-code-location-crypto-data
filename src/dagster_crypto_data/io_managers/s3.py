@@ -8,7 +8,7 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 from dagster import ConfigurableIOManager, InputContext, OutputContext
-from pydantic import Field, SecretStr
+from pydantic import Field
 
 
 class S3IOManager(ConfigurableIOManager):
@@ -20,7 +20,7 @@ class S3IOManager(ConfigurableIOManager):
     Attributes:
         endpoint_url: S3 endpoint URL (e.g., http://localhost:9000 for MinIO)
         access_key: S3 access key ID
-        secret_key: S3 secret access key
+        secret_key: S3 secret access key (use EnvVar for security)
         bucket: S3 bucket name
         region: AWS region (default: us-east-1)
         use_ssl: Whether to use SSL/TLS (default: True for production)
@@ -65,7 +65,7 @@ class S3IOManager(ConfigurableIOManager):
         description="S3 endpoint URL (None for AWS S3, http://localhost:9000 for MinIO)",
     )
     access_key: str = Field(description="S3 access key ID")
-    secret_key: SecretStr = Field(description="S3 secret access key")
+    secret_key: str = Field(description="S3 secret access key (use EnvVar for security)")
     bucket: str = Field(description="S3 bucket name")
     region: str = Field(default="us-east-1", description="AWS region")
     use_ssl: bool = Field(
@@ -83,7 +83,7 @@ class S3IOManager(ConfigurableIOManager):
             "s3",
             endpoint_url=self.endpoint_url,
             aws_access_key_id=self.access_key,
-            aws_secret_access_key=self.secret_key.get_secret_value(),
+            aws_secret_access_key=self.secret_key,
             region_name=self.region,
             use_ssl=self.use_ssl,
         )

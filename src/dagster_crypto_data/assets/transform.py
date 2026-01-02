@@ -152,27 +152,27 @@ def transform_asset_factory(
                 context.log.warning(
                     f"Received empty data from {config.source_asset_key}"
                 )
-                # Return empty DataFrame with schema
+                # Return empty DataFrame with schema using Narwhals
+                # Create empty dict with schema
+                empty_data = {
+                    "symbol": [],
+                    "timestamp": [],
+                    "datetime": [],
+                    "last": [],
+                    "bid": [],
+                    "ask": [],
+                    "high": [],
+                    "low": [],
+                    "volume": [],
+                    "base_volume": [],
+                    "quote_volume": [],
+                    "exchange_id": [],
+                    "extraction_timestamp": [],
+                }
+                # Use Polars to create empty DataFrame, then wrap with Narwhals
                 import polars as pl
 
-                df_empty = pl.DataFrame(
-                    {
-                        "symbol": [],
-                        "timestamp": [],
-                        "datetime": [],
-                        "last": [],
-                        "bid": [],
-                        "ask": [],
-                        "high": [],
-                        "low": [],
-                        "volume": [],
-                        "base_volume": [],
-                        "quote_volume": [],
-                        "exchange_id": [],
-                        "extraction_timestamp": [],
-                    }
-                )
-                df = nw.from_native(df_empty)
+                df = nw.from_native(pl.DataFrame(empty_data))
                 return Output(
                     value=df,
                     metadata={
@@ -196,8 +196,7 @@ def transform_asset_factory(
             # Polars will automatically infer schema and handle nested structures
             import polars as pl
 
-            df_native = pl.DataFrame(records)
-            df = nw.from_native(df_native)
+            df = nw.from_native(pl.DataFrame(records))
 
             # Select and rename relevant columns
             # This handles cases where some fields might be missing

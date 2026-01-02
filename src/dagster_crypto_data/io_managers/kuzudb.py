@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import polars as pl
+import narwhals as nw
 from dagster import ConfigurableIOManager, InputContext, OutputContext
 from pydantic import Field
+
+if TYPE_CHECKING:
+    from narwhals.typing import FrameT
 
 
 class KuzuDBIOManager(ConfigurableIOManager):
@@ -99,21 +102,34 @@ class KuzuDBIOManager(ConfigurableIOManager):
         conn = kuzu.Connection(db)
         return db, conn
 
-    def handle_output(self, context: OutputContext, obj: pl.DataFrame) -> None:
-        """Store a Polars DataFrame as a KuzuDB node table.
+    def handle_output(self, context: OutputContext, obj: FrameT) -> None:
+        """Store a DataFrame as a KuzuDB node table.
 
         Args:
             context: Dagster output context
-            obj: Polars DataFrame to store
+            obj: Narwhals-compatible DataFrame to store
 
         Raises:
-            TypeError: If obj is not a Polars DataFrame
+            TypeError: If obj is not a DataFrame
             ImportError: If kuzu is not installed
         """
-        if not isinstance(obj, pl.DataFrame):
+        # Convert to Narwhals DataFrame for compatibility
+        try:
+            df = nw.from_native(obj)
+        except Exception as e:
             raise TypeError(
-                f"KuzuDBIOManager expects polars.DataFrame, got {type(obj).__name__}"
-            )
+                f"KuzuDBIOManager expects a DataFrame, got {type(obj).__name__}"
+            ) from e
+
+        # Convert to native Polars for operations
+        import polars as pl
+
+        native_df = nw.to_native(df)
+        # Ensure we have a Polars DataFrame
+        if not isinstance(native_df, pl.DataFrame):
+            # Convert via Arrow if not Polars
+            arrow_table = df.to_arrow()  # type: ignore[attr-defined]
+            native_df = pl.from_arrow(arrow_table)
 
         db, conn = self._get_kuzu_connection()
         table_name = self._get_node_table_name(context)
@@ -131,7 +147,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
         schema_parts = []
         primary_key = None
 
-        for col_name, dtype in zip(obj.columns, obj.dtypes):
+        for col_name, dtype in zip(native_df.columns, native_df.dtypes):  # type: ignore[attr-defined]
             # Map Polars types to KuzuDB types
             if dtype == pl.Int64 or dtype == pl.Int32:
                 kuzu_type = "INT64"
@@ -165,26 +181,28 @@ class KuzuDBIOManager(ConfigurableIOManager):
 
         # Insert data from Polars DataFrame
         # Convert DataFrame to list of tuples for insertion
-        for row in obj.iter_rows():
+        for row in native_df.iter_rows():  # type: ignore[attr-defined]
             # Build INSERT query
             values = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in row])
-            insert_query = f"CREATE (:{table_name} {{{', '.join([f'{col}: {val}' for col, val in zip(obj.columns, row)])}}});"
+            insert_query = f"CREATE (:{table_name} {{{', '.join([f'{col}: {val}' for col, val in zip(native_df.columns, row)])}}});"  # type: ignore[attr-defined]
             try:
                 conn.execute(insert_query)
             except Exception as e:
                 context.log.warning(f"Failed to insert row: {e}")
                 continue
 
-        context.log.info(f"Stored {len(obj)} rows to KuzuDB node table {table_name}")
+        context.log.info(
+            f"Stored {len(native_df)} rows to KuzuDB node table {table_name}"
+        )
 
-    def load_input(self, context: InputContext) -> pl.DataFrame:
-        """Load a Polars DataFrame from KuzuDB node table.
+    def load_input(self, context: InputContext) -> FrameT:
+        """Load a DataFrame from KuzuDB node table.
 
         Args:
             context: Dagster input context
 
         Returns:
-            Polars DataFrame loaded from KuzuDB
+            Polars DataFrame loaded from KuzuDB (Narwhals-compatible)
 
         Raises:
             FileNotFoundError: If database doesn't exist

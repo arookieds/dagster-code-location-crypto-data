@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
-import polars as pl
+from typing import TYPE_CHECKING
+
+import narwhals as nw
 from dagster import ConfigurableIOManager, InputContext, OutputContext
-from pydantic import Field, SecretStr
+from pydantic import Field
 
 from dagster_crypto_data.connectors.database import DatabaseManagement
+
+if TYPE_CHECKING:
+    from narwhals.typing import FrameT
 
 
 class SQLIOManager(ConfigurableIOManager):
@@ -21,7 +26,7 @@ class SQLIOManager(ConfigurableIOManager):
         port: Database port (for PostgreSQL)
         database: Database name or SQLite file path
         username: Database username (for PostgreSQL)
-        password: Database password (for PostgreSQL)
+        password: Database password (for PostgreSQL, use EnvVar for security)
         schema: Database schema name (default: public)
 
     Example:
@@ -75,9 +80,9 @@ class SQLIOManager(ConfigurableIOManager):
         default="",
         description="Database username (required for PostgreSQL)",
     )
-    password: SecretStr | None = Field(
+    password: str | None = Field(
         default=None,
-        description="Database password (required for PostgreSQL)",
+        description="Database password (required for PostgreSQL, use EnvVar for security)",
     )
     schema: str = Field(
         default="public",
@@ -104,7 +109,7 @@ class SQLIOManager(ConfigurableIOManager):
                 port=self.port,
                 db_name=self.db_name,
                 username=self.username,
-                password=self.password.get_secret_value() if self.password else "",
+                password=self.password if self.password else "",
             )
         else:  # sqlite
             return DatabaseManagement(
@@ -128,20 +133,23 @@ class SQLIOManager(ConfigurableIOManager):
         # Use asset key path joined with underscores
         return "_".join(context.asset_key.path)
 
-    def handle_output(self, context: OutputContext, obj: pl.DataFrame) -> None:
-        """Store a Polars DataFrame in SQL database.
+    def handle_output(self, context: OutputContext, obj: FrameT) -> None:
+        """Store a DataFrame in SQL database.
 
         Args:
             context: Dagster output context
-            obj: Polars DataFrame to store
+            obj: Narwhals-compatible DataFrame to store
 
         Raises:
-            TypeError: If obj is not a Polars DataFrame
+            TypeError: If obj is not a DataFrame
         """
-        if not isinstance(obj, pl.DataFrame):
+        # Convert to Narwhals DataFrame for compatibility
+        try:
+            df = nw.from_native(obj)
+        except Exception as e:
             raise TypeError(
-                f"SQLIOManager expects polars.DataFrame, got {type(obj).__name__}"
-            )
+                f"SQLIOManager expects a DataFrame, got {type(obj).__name__}"
+            ) from e
 
         db_manager = self._get_db_manager()
         table_name = self._get_table_name(context)
@@ -150,27 +158,31 @@ class SQLIOManager(ConfigurableIOManager):
         engine = db_manager.engine
 
         # Write DataFrame to SQL
-        # Using Polars' write_database method
+        # Convert to native DataFrame for database operations
+        native_df = nw.to_native(df)
         connection_string = str(engine.url)
 
-        obj.write_database(
+        # Use ADBC for PostgreSQL and SQLite (both have ADBC drivers)
+        native_df.write_database(
             table_name=table_name,
             connection=connection_string,
             if_table_exists="replace",
+            engine="adbc",
         )
 
+        row_count = len(native_df) if hasattr(native_df, "__len__") else 0
         context.log.info(
-            f"Stored {len(obj)} rows to {self.db_type} table {self.schema}.{table_name}"
+            f"Stored {row_count} rows to {self.db_type} table {self.schema}.{table_name}"
         )
 
-    def load_input(self, context: InputContext) -> pl.DataFrame:
-        """Load a Polars DataFrame from SQL database.
+    def load_input(self, context: InputContext) -> FrameT:
+        """Load a DataFrame from SQL database.
 
         Args:
             context: Dagster input context
 
         Returns:
-            Polars DataFrame loaded from SQL database
+            Polars DataFrame loaded from SQL database (Narwhals-compatible)
 
         Raises:
             ValueError: If table doesn't exist
@@ -180,18 +192,20 @@ class SQLIOManager(ConfigurableIOManager):
         engine = db_manager.engine
 
         # Read DataFrame from SQL
-        connection_string = str(engine.url)
-
+        # Use SQLAlchemy connection directly (Polars auto-detects)
         try:
+            import polars as pl
+
             df = pl.read_database(
                 query=f"SELECT * FROM {self.schema}.{table_name}",
-                connection=connection_string,
+                connection=engine,
             )
             context.log.info(
                 f"Loaded {len(df)} rows from {self.db_type} table "
                 f"{self.schema}.{table_name}"
             )
-            return df
+            # Return Polars DataFrame (Narwhals-compatible)
+            return df  # type: ignore[return-value]
         except Exception as e:
             raise ValueError(
                 f"Failed to load table {self.schema}.{table_name} "

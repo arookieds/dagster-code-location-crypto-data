@@ -15,7 +15,6 @@ from dagster import (
     build_input_context,
     build_output_context,
 )
-from pydantic import SecretStr
 
 from dagster_crypto_data.io_managers import S3IOManager
 
@@ -26,7 +25,7 @@ def s3_io_manager() -> S3IOManager:
     return S3IOManager(
         endpoint_url="http://localhost:9000",
         access_key="minioadmin",
-        secret_key=SecretStr("minioadmin"),
+        secret_key="minioadmin",
         bucket="test-bucket",
         region="us-east-1",
         use_ssl=False,
@@ -204,7 +203,7 @@ class TestS3IOManager:
         io_manager = S3IOManager(
             endpoint_url=None,  # AWS S3
             access_key="AWS_KEY",
-            secret_key=SecretStr("AWS_SECRET"),
+            secret_key="AWS_SECRET",
             bucket="production-bucket",
             region="us-west-2",
             use_ssl=True,

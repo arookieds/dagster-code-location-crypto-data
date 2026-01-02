@@ -88,29 +88,33 @@ class DuckDBIOManager(ConfigurableIOManager):
         self._ensure_db_exists()
         table_name = self._get_table_name(context)
 
-        # Convert to native Polars for database operations
-        # Polars has native ADBC support for DuckDB
-        import polars as pl
+        # Use native DuckDB API for writing
+        # DuckDB can directly consume Arrow tables
+        try:
+            import duckdb
+        except ImportError as e:
+            raise ImportError(
+                "DuckDB is not installed. Install it with: uv add duckdb"
+            ) from e
 
+        # Convert to Arrow for DuckDB consumption
+        # Get native DataFrame first, then convert to Arrow
         native_df = nw.to_native(df)
-        if not isinstance(native_df, pl.DataFrame):
-            # If not Polars, convert via Arrow
-            native_df = pl.from_arrow(df.to_arrow())
+        arrow_table = native_df.to_arrow()
+        row_count = arrow_table.num_rows
 
-        # Write DataFrame to DuckDB using ADBC
-        connection_string = f"duckdb:///{self.db_path}"
-
-        # Create table (replace if exists)
-        native_df.write_database(
-            table_name=table_name,
-            connection=connection_string,
-            if_table_exists="replace",
-            engine="adbc",
-        )
-
-        context.log.info(
-            f"Stored {len(df)} rows to DuckDB table {self.schema}.{table_name}"
-        )
+        # Connect to DuckDB and write table
+        conn = duckdb.connect(self.db_path)
+        try:
+            # Create or replace table from Arrow
+            conn.execute(
+                f"CREATE OR REPLACE TABLE {self.schema}.{table_name} AS SELECT * FROM arrow_table"
+            )
+            context.log.info(
+                f"Stored {row_count} rows to DuckDB table {self.schema}.{table_name}"
+            )
+        finally:
+            conn.close()
 
     def load_input(self, context: InputContext) -> FrameT:
         """Load a DataFrame from DuckDB.
@@ -133,22 +137,34 @@ class DuckDBIOManager(ConfigurableIOManager):
             )
 
         table_name = self._get_table_name(context)
-        connection_string = f"duckdb:///{self.db_path}"
 
-        # Read DataFrame from DuckDB using ADBC
+        # Read DataFrame from DuckDB using native API
         try:
-            import polars as pl
+            import duckdb
+        except ImportError as e:
+            raise ImportError(
+                "DuckDB is not installed. Install it with: uv add duckdb"
+            ) from e
 
-            df = pl.read_database(
-                query=f"SELECT * FROM {self.schema}.{table_name}",
-                connection=connection_string,
-                engine="adbc",
-            )
-            context.log.info(
-                f"Loaded {len(df)} rows from DuckDB table {self.schema}.{table_name}"
-            )
-            # Return Polars DataFrame (Narwhals-compatible)
-            return df  # type: ignore[return-value]
+        try:
+            conn = duckdb.connect(self.db_path, read_only=True)
+            try:
+                # Query and convert to Arrow, then to Polars
+                result = conn.execute(
+                    f"SELECT * FROM {self.schema}.{table_name}"
+                ).fetch_arrow_table()
+
+                # Convert Arrow to Polars (Narwhals-compatible)
+                import polars as pl
+
+                df = pl.from_arrow(result)
+                context.log.info(
+                    f"Loaded {len(df)} rows from DuckDB table {self.schema}.{table_name}"
+                )
+                # Return Polars DataFrame (Narwhals-compatible)
+                return df  # type: ignore[return-value]
+            finally:
+                conn.close()
         except Exception as e:
             raise ValueError(
                 f"Failed to load table {self.schema}.{table_name} from DuckDB: {e}"
