@@ -106,6 +106,10 @@ class DuckDBIOManager(ConfigurableIOManager):
         # Connect to DuckDB and write table
         conn = duckdb.connect(self.db_path)
         try:
+            # Create schema if it doesn't exist (unless it's 'main')
+            if self.schema != "main":
+                conn.execute(f"CREATE SCHEMA IF NOT EXISTS {self.schema}")
+
             # Create or replace table from Arrow
             conn.execute(
                 f"CREATE OR REPLACE TABLE {self.schema}.{table_name} AS SELECT * FROM arrow_table"

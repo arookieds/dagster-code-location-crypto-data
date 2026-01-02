@@ -13,7 +13,6 @@ from dagster import (
     build_input_context,
     build_output_context,
 )
-from pydantic import SecretStr
 
 from dagster_crypto_data.io_managers import SQLIOManager
 
@@ -25,11 +24,15 @@ def temp_db_path(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def sqlite_io_manager(temp_db_path: Path) -> SQLIOManager:
+def sqlite_io_manager(
+    temp_db_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> SQLIOManager:
     """Create SQLIOManager instance for SQLite."""
+    # Change to temp directory so relative path works
+    monkeypatch.chdir(temp_db_path.parent)
     return SQLIOManager(
         db_type="sqlite",
-        db_name=str(temp_db_path),
+        db_name="test",  # Use relative path
     )
 
 
@@ -105,7 +108,7 @@ class TestSQLIOManagerSQLite:
         output_context: OutputContext,
     ) -> None:
         """Test that handle_output raises TypeError for non-DataFrame."""
-        with pytest.raises(TypeError, match="SQLIOManager expects polars.DataFrame"):
+        with pytest.raises(TypeError, match="SQLIOManager expects a DataFrame"):
             sqlite_io_manager.handle_output(output_context, {"not": "a dataframe"})  # type: ignore
 
     def test_handle_output_replaces_existing_table(
@@ -194,7 +197,7 @@ class TestSQLIOManagerPostgreSQL:
             port=5432,
             db_name="test_db",
             username="test_user",
-            password=SecretStr("test_password"),
+            password="test_password",
             schema="analytics",
         )
 
@@ -222,11 +225,14 @@ class TestSQLIOManagerPostgreSQL:
     def test_sqlite_does_not_require_credentials(
         self,
         temp_db_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test that SQLite doesn't require credentials."""
+        # Change to temp directory so relative path works
+        monkeypatch.chdir(temp_db_path.parent)
         io_manager = SQLIOManager(
             db_type="sqlite",
-            db_name=str(temp_db_path),
+            db_name="test",  # Use relative path
         )
 
         # Should not raise error

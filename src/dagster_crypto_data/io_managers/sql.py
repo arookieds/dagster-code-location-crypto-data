@@ -133,6 +133,22 @@ class SQLIOManager(ConfigurableIOManager):
         # Use asset key path joined with underscores
         return "_".join(context.asset_key.path)
 
+    def _get_full_table_name(self, table_name: str) -> str:
+        """Get the full table name with schema prefix if applicable.
+
+        SQLite doesn't support schemas, so we only use schema prefix for PostgreSQL.
+
+        Args:
+            table_name: Base table name
+
+        Returns:
+            Full table name (e.g., "public.table" for PostgreSQL, "table" for SQLite)
+        """
+        if self.db_type == "postgresql":
+            return f"{self.schema}.{table_name}"
+        else:  # sqlite
+            return table_name
+
     def handle_output(self, context: OutputContext, obj: FrameT) -> None:
         """Store a DataFrame in SQL database.
 
@@ -153,6 +169,7 @@ class SQLIOManager(ConfigurableIOManager):
 
         db_manager = self._get_db_manager()
         table_name = self._get_table_name(context)
+        full_table_name = self._get_full_table_name(table_name)
 
         # Get SQLAlchemy engine
         engine = db_manager.engine
@@ -172,7 +189,7 @@ class SQLIOManager(ConfigurableIOManager):
 
         row_count = len(native_df) if hasattr(native_df, "__len__") else 0
         context.log.info(
-            f"Stored {row_count} rows to {self.db_type} table {self.schema}.{table_name}"
+            f"Stored {row_count} rows to {self.db_type} table {full_table_name}"
         )
 
     def load_input(self, context: InputContext) -> FrameT:
@@ -189,6 +206,7 @@ class SQLIOManager(ConfigurableIOManager):
         """
         db_manager = self._get_db_manager()
         table_name = self._get_table_name(context)
+        full_table_name = self._get_full_table_name(table_name)
         engine = db_manager.engine
 
         # Read DataFrame from SQL
@@ -197,17 +215,15 @@ class SQLIOManager(ConfigurableIOManager):
             import polars as pl
 
             df = pl.read_database(
-                query=f"SELECT * FROM {self.schema}.{table_name}",
+                query=f"SELECT * FROM {full_table_name}",
                 connection=engine,
             )
             context.log.info(
-                f"Loaded {len(df)} rows from {self.db_type} table "
-                f"{self.schema}.{table_name}"
+                f"Loaded {len(df)} rows from {self.db_type} table {full_table_name}"
             )
             # Return Polars DataFrame (Narwhals-compatible)
             return df  # type: ignore[return-value]
         except Exception as e:
             raise ValueError(
-                f"Failed to load table {self.schema}.{table_name} "
-                f"from {self.db_type}: {e}"
+                f"Failed to load table {full_table_name} from {self.db_type}: {e}"
             ) from e

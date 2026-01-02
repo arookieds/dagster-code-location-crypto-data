@@ -94,13 +94,19 @@ class TestDuckDBIOManager:
         # Verify database file was created
         assert temp_db_path.exists()
 
-        # Verify table exists and has correct data
-        loaded_df = pl.read_database(
-            query="SELECT * FROM main.transform_ohlcv",
-            connection=f"duckdb:///{temp_db_path}",
-        )
-        assert loaded_df.shape == sample_dataframe.shape
-        assert loaded_df.columns == sample_dataframe.columns
+        # Verify table exists and has correct data using native DuckDB
+        import duckdb
+
+        conn = duckdb.connect(str(temp_db_path), read_only=True)
+        try:
+            result = conn.execute(
+                "SELECT * FROM main.transform_ohlcv"
+            ).fetch_arrow_table()
+            loaded_df = pl.from_arrow(result)
+            assert loaded_df.shape == sample_dataframe.shape
+            assert loaded_df.columns == sample_dataframe.columns
+        finally:
+            conn.close()
 
     def test_handle_output_with_invalid_type_raises_error(
         self,
@@ -108,7 +114,7 @@ class TestDuckDBIOManager:
         output_context: OutputContext,
     ) -> None:
         """Test that handle_output raises TypeError for non-DataFrame."""
-        with pytest.raises(TypeError, match="DuckDBIOManager expects polars.DataFrame"):
+        with pytest.raises(TypeError, match="DuckDBIOManager expects a DataFrame"):
             duckdb_io_manager.handle_output(output_context, {"not": "a dataframe"})  # type: ignore
 
     def test_handle_output_replaces_existing_table(
@@ -207,9 +213,15 @@ class TestDuckDBIOManager:
 
         io_manager.handle_output(context, sample_dataframe)
 
-        # Verify table exists in custom schema
-        loaded_df = pl.read_database(
-            query="SELECT * FROM analytics.test_table",
-            connection=f"duckdb:///{temp_db_path}",
-        )
-        assert len(loaded_df) == len(sample_dataframe)
+        # Verify table exists in custom schema using native DuckDB
+        import duckdb
+
+        conn = duckdb.connect(str(temp_db_path), read_only=True)
+        try:
+            result = conn.execute(
+                "SELECT * FROM analytics.test_table"
+            ).fetch_arrow_table()
+            loaded_df = pl.from_arrow(result)
+            assert len(loaded_df) == len(sample_dataframe)
+        finally:
+            conn.close()
