@@ -33,6 +33,7 @@ dependencies = [
   "boto3>=1.42.17",
   "ccxt>=4.5.29",
   "dagster>=1.12.7",
+  "dagster-dg-cli[local]>=1.12.7",
   "dagster-postgres>=0.28.7",
   "dagster-webserver>=1.12.7",
   "duckdb>=1.4.3",
@@ -48,18 +49,17 @@ dependencies = [
 dagster-crypto-data = "dagster_crypto_data:main"
 
 [dependency-groups]
-docs = [
-    "mkdocs>=1.6.1",
-    "mkdocs-material>=9.7.1",
-    "pymdown-extensions>=10.20",
-]
-testing = [
-    "pytest>=9.0.2",
-    "pytest-cov>=7.0.0",
-]
+docs = ["mkdocs>=1.6.1", "mkdocs-material>=9.7.1", "pymdown-extensions>=10.20"]
+testing = ["pytest>=9.0.2", "pytest-cov>=7.0.0"]
 
-[tool.dagster]
-module = "src.definitions"
+# [tool.dagster]
+# module = "src.definitions"
+
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "dagster_crypto_data"
 
 [tool.black]
 line-length = 89
@@ -130,7 +130,21 @@ strict_equality = true
 strict_concatenate = true
 
 [[tool.mypy.overrides]]
-module = ["dagster.*", "dlt.*", "ccxt.*", "sqlmodel", "sqlmodel.*", "sqlalchemy", "sqlalchemy.*", "pydantic", "pydantic.*", "narwhals", "narwhals.*", "polars", "polars.*"]
+module = [
+  "dagster.*",
+  "dlt.*",
+  "ccxt.*",
+  "sqlmodel",
+  "sqlmodel.*",
+  "sqlalchemy",
+  "sqlalchemy.*",
+  "pydantic",
+  "pydantic.*",
+  "narwhals",
+  "narwhals.*",
+  "polars",
+  "polars.*",
+]
 ignore_missing_imports = true
 
 [tool.pyright]

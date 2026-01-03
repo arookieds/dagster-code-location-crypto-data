@@ -135,8 +135,8 @@ from pydantic import BaseModel
 from sqlmodel import Field, Session
 
 # Local/application imports
-from dagster_crypto_data.models import CryptoData
-from dagster_crypto_data.utils import fetch_data
+from dagster_crypto_data.defs.models import CryptoData
+from dagster_crypto_data.defs.utils import fetch_data
 
 # TYPE_CHECKING imports (for type hints only, not runtime)
 if TYPE_CHECKING:
@@ -353,7 +353,7 @@ class OHLCVData(BaseModel):
 Use **structlog** for structured logging:
 
 ```python
-from dagster_crypto_data.utils import get_logger
+from dagster_crypto_data.defs.utils import get_logger
 
 # Get logger instance
 logger = get_logger(__name__, log_level="INFO", use_json=False)

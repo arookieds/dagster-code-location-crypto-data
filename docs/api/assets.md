@@ -15,7 +15,7 @@ Extract OHLCV (Open, High, Low, Close, Volume) candles from Binance.
 **Example**:
 ```python
 from dagster import build_asset_context
-from dagster_crypto_data.assets.extract import extract_binance_ohlcv
+from dagster_crypto_data.defs.assets.extract import extract_binance_ohlcv
 
 context = build_asset_context()
 result = extract_binance_ohlcv(context)
@@ -36,7 +36,7 @@ Transform raw OHLCV data into validated Pydantic models.
 
 **Example**:
 ```python
-from dagster_crypto_data.assets.transform import transform_ohlcv
+from dagster_crypto_data.defs.assets.transform import transform_ohlcv
 
 transformed = transform_ohlcv(context, raw_data)
 ```

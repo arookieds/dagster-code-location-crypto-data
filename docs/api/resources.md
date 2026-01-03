@@ -11,7 +11,7 @@ CCXT-based cryptocurrency exchange resource.
 ### Configuration
 
 ```python
-from dagster_crypto_data.resources.exchange import ExchangeResource
+from dagster_crypto_data.defs.resources.exchange import ExchangeResource
 
 exchange = ExchangeResource(
     exchange_id="binance",

@@ -4,7 +4,7 @@ import pytest
 from dagster import materialize
 from pydantic import ValidationError
 
-from dagster_crypto_data.assets.transform import (
+from dagster_crypto_data.defs.assets.transform import (
     TransformAssetConfig,
     transform_asset_factory,
 )

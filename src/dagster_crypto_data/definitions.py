@@ -1,10 +1,10 @@
 from dagster import Definitions, ScheduleDefinition, define_asset_job
 
-from dagster_crypto_data.assets.extract import extract_asset_factory
-from dagster_crypto_data.assets.transform import transform_asset_factory
-from dagster_crypto_data.io_managers import FilesystemIOManager
-from dagster_crypto_data.resources.exchange import CCXTExchangeResource
-from dagster_crypto_data.utils import get_logger, get_settings
+from dagster_crypto_data.defs.assets.extract import extract_asset_factory
+from dagster_crypto_data.defs.assets.transform import transform_asset_factory
+from dagster_crypto_data.defs.io_managers import DuckDBIOManager, FilesystemIOManager
+from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
+from dagster_crypto_data.defs.utils import get_logger, get_settings
 
 logger = get_logger(__name__)
 settings = get_settings()
@@ -22,6 +22,7 @@ binance_transform = transform_asset_factory(
     group_name="transform",
     exchange_id="binance",
     source_asset_key="binance_raw_tickers",
+    io_manager_key="duckdb_io_manager",
 )
 
 # Define jobs
@@ -52,6 +53,7 @@ defs = Definitions(
     schedules=[extract_schedule, transform_schedule],
     resources={
         "io_manager": FilesystemIOManager(base_path="./local_runs"),
+        "duckdb_io_manager": DuckDBIOManager(db_path="./local_runs/crypto.duckdb"),
         "exchange": CCXTExchangeResource(exchange_id="binance"),
     },
 )

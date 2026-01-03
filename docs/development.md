@@ -138,7 +138,7 @@ from dagster import asset, AssetExecutionContext
 from pydantic import BaseModel
 
 # Local
-from dagster_crypto_data.models import OHLCVData
+from dagster_crypto_data.defs.models import OHLCVData
 
 # TYPE_CHECKING imports (avoid circular imports)
 if TYPE_CHECKING:
@@ -197,7 +197,7 @@ tests/
 
 ```python
 import pytest
-from dagster_crypto_data.models import OHLCVData
+from dagster_crypto_data.defs.models import OHLCVData
 
 @pytest.mark.unit
 def test_ohlcv_validation() -> None:
@@ -234,7 +234,7 @@ def test_ohlcv_validation() -> None:
 ```python
 import pytest
 from dagster import build_asset_context
-from dagster_crypto_data.assets.extract import extract_binance_ohlcv
+from dagster_crypto_data.defs.assets.extract import extract_binance_ohlcv
 
 @pytest.mark.integration
 def test_extract_binance_ohlcv_integration() -> None:
@@ -415,7 +415,7 @@ breakpoint()
 ### Logging
 
 ```python
-from dagster_crypto_data.utils import get_logger
+from dagster_crypto_data.defs.utils import get_logger
 
 logger = get_logger(__name__)
 

@@ -36,14 +36,14 @@ src/dagster_crypto_data/
 ### Assets
 
 ```python
-from dagster_crypto_data.assets.extract import extract_binance_ohlcv
-from dagster_crypto_data.assets.transform import transform_ohlcv
+from dagster_crypto_data.defs.assets.extract import extract_binance_ohlcv
+from dagster_crypto_data.defs.assets.transform import transform_ohlcv
 ```
 
 ### Resources
 
 ```python
-from dagster_crypto_data.resources.exchange import ExchangeResource
+from dagster_crypto_data.defs.resources.exchange import ExchangeResource
 
 exchange = ExchangeResource(exchange_id="binance")
 client = exchange.get_client()
@@ -52,8 +52,8 @@ client = exchange.get_client()
 ### Models
 
 ```python
-from dagster_crypto_data.models.tickers import TickerData
-from dagster_crypto_data.models.pipeline_configs import ExtractConfig
+from dagster_crypto_data.defs.models.tickers import TickerData
+from dagster_crypto_data.defs.models.pipeline_configs import ExtractConfig
 
 ticker = TickerData(symbol="BTC/USDT", last=50000.0, ...)
 config = ExtractConfig(exchange="binance", symbols=["BTC/USDT"])
@@ -62,7 +62,7 @@ config = ExtractConfig(exchange="binance", symbols=["BTC/USDT"])
 ### Database
 
 ```python
-from dagster_crypto_data.connectors.database import get_engine, get_session
+from dagster_crypto_data.defs.connectors.database import get_engine, get_session
 
 engine = get_engine()
 with get_session() as session:
@@ -72,7 +72,7 @@ with get_session() as session:
 ### Logging
 
 ```python
-from dagster_crypto_data.utils.logger import get_logger
+from dagster_crypto_data.defs.utils.logger import get_logger
 
 logger = get_logger(__name__)
 logger.info("Processing data", exchange="binance", symbol="BTC/USDT")

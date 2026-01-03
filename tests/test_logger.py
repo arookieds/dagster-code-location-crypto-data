@@ -5,7 +5,7 @@ import logging
 import pytest
 import structlog
 
-from dagster_crypto_data.utils.logger import get_logger
+from dagster_crypto_data.defs.utils.logger import get_logger
 
 
 @pytest.fixture(autouse=True)
@@ -16,7 +16,7 @@ def reset_logging_config() -> None:
     resetting the global _configured flag.
     """
     # Reset the module-level _configured flag
-    import dagster_crypto_data.utils.logger as logger_module
+    import dagster_crypto_data.defs.utils.logger as logger_module
 
     logger_module._configured = False
 
@@ -63,7 +63,7 @@ def test_get_logger_default_parameters() -> None:
 
 def test_logging_configured_only_once() -> None:
     """Verifies that logging is configured only on first call."""
-    import dagster_crypto_data.utils.logger as logger_module
+    import dagster_crypto_data.defs.utils.logger as logger_module
 
     # Initially not configured
     assert logger_module._configured is False

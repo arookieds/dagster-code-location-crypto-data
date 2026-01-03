@@ -16,7 +16,7 @@ from dagster import (
     build_output_context,
 )
 
-from dagster_crypto_data.io_managers import S3IOManager
+from dagster_crypto_data.defs.io_managers import S3IOManager
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ class TestS3IOManager:
         s3_key = s3_io_manager._get_s3_key(context)
         assert s3_key == "extract/binance/ohlcv.json"
 
-    @patch("dagster_crypto_data.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
     def test_handle_output_uploads_to_s3(
         self,
         mock_boto3_client: MagicMock,
@@ -104,7 +104,7 @@ class TestS3IOManager:
         uploaded_data = json.loads(call_kwargs["Body"].decode("utf-8"))
         assert uploaded_data == sample_data
 
-    @patch("dagster_crypto_data.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
     def test_handle_output_with_invalid_type_raises_error(
         self,
         mock_boto3_client: MagicMock,
@@ -115,7 +115,7 @@ class TestS3IOManager:
         with pytest.raises(TypeError, match="S3IOManager expects dict"):
             s3_io_manager.handle_output(output_context, "not a dict")  # type: ignore
 
-    @patch("dagster_crypto_data.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
     def test_handle_output_s3_error_raises(
         self,
         mock_boto3_client: MagicMock,
@@ -134,7 +134,7 @@ class TestS3IOManager:
         with pytest.raises(ClientError):
             s3_io_manager.handle_output(output_context, sample_data)
 
-    @patch("dagster_crypto_data.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
     def test_load_input_downloads_from_s3(
         self,
         mock_boto3_client: MagicMock,
@@ -162,7 +162,7 @@ class TestS3IOManager:
 
         assert loaded_data == sample_data
 
-    @patch("dagster_crypto_data.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
     def test_load_input_object_not_found_raises_error(
         self,
         mock_boto3_client: MagicMock,
@@ -180,7 +180,7 @@ class TestS3IOManager:
         with pytest.raises(FileNotFoundError, match="Asset not found in S3"):
             s3_io_manager.load_input(input_context)
 
-    @patch("dagster_crypto_data.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
     def test_s3_client_configuration(
         self,
         mock_boto3_client: MagicMock,

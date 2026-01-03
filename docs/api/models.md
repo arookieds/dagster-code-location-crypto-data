@@ -20,7 +20,7 @@ Ticker data model for exchange ticker information.
 
 **Example**:
 ```python
-from dagster_crypto_data.models.tickers import TickerData
+from dagster_crypto_data.defs.models.tickers import TickerData
 
 ticker = TickerData(
     symbol="BTC/USDT",
@@ -46,7 +46,7 @@ Configuration model for extract assets.
 
 **Example**:
 ```python
-from dagster_crypto_data.models.pipeline_configs import ExtractConfig
+from dagster_crypto_data.defs.models.pipeline_configs import ExtractConfig
 
 config = ExtractConfig(
     exchange="binance",
@@ -78,7 +78,7 @@ OHLCV table model for PostgreSQL.
 **Example**:
 ```python
 from sqlmodel import Session
-from dagster_crypto_data.models import OHLCV
+from dagster_crypto_data.defs.models import OHLCV
 
 with Session(engine) as session:
     candle = OHLCV(

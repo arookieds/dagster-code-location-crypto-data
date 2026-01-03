@@ -76,7 +76,7 @@ def transform_asset_factory(
 
     Example:
         >>> from dagster import Definitions
-        >>> from dagster_crypto_data.resources.exchange import CCXTExchangeResource
+        >>> from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
         >>>
         >>> # Create extract asset
         >>> extract_asset = extract_asset_factory(
