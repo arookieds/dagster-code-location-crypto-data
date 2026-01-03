@@ -9,7 +9,7 @@ from dagster import AssetsDefinition, MetadataValue, Output, asset
 from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
-    from dagster_crypto_data.resources.exchange import CCXTExchangeResource
+    from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
 
 
 class ExtractAssetConfig(BaseModel):
@@ -74,7 +74,7 @@ def extract_asset_factory(
 
     Example:
         >>> from dagster import Definitions
-        >>> from dagster_crypto_data.resources.exchange import CCXTExchangeResource
+        >>> from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
         >>>
         >>> binance_asset = extract_asset_factory(
         ...     asset_name="binance_tickers",

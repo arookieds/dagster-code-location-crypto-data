@@ -29,7 +29,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
     Example:
         ```python
         from dagster import Definitions
-        from dagster_crypto_data.io_managers import KuzuDBIOManager
+        from dagster_crypto_data.defs.io_managers import KuzuDBIOManager
 
         defs = Definitions(
             assets=[...],

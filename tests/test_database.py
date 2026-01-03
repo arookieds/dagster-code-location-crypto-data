@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import inspect
 from sqlmodel import Field, SQLModel
 
-from dagster_crypto_data.connectors.database import DatabaseManagement
+from dagster_crypto_data.defs.connectors.database import DatabaseManagement
 
 
 # Define sample models for testing

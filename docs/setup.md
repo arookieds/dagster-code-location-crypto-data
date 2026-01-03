@@ -160,7 +160,7 @@ LOG_JSON=false
 uv run alembic upgrade head
 
 # Or manually create tables using SQLModel
-uv run python -c "from dagster_crypto_data.connectors.database import init_db; init_db()"
+uv run python -c "from dagster_crypto_data.defs.connectors.database import init_db; init_db()"
 ```
 
 ### 7. Verify Installation

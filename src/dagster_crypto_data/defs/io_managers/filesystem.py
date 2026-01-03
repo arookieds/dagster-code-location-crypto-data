@@ -23,7 +23,7 @@ class FilesystemIOManager(ConfigurableIOManager):
     Example:
         ```python
         from dagster import Definitions
-        from dagster_crypto_data.io_managers import FilesystemIOManager
+        from dagster_crypto_data.defs.io_managers import FilesystemIOManager
 
         defs = Definitions(
             assets=[...],

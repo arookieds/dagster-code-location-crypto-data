@@ -15,7 +15,7 @@ from dagster import (
     build_output_context,
 )
 
-from dagster_crypto_data.io_managers import FilesystemIOManager
+from dagster_crypto_data.defs.io_managers import FilesystemIOManager
 
 
 @pytest.fixture

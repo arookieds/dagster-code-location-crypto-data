@@ -108,7 +108,7 @@ psql -h localhost -U crypto_user -d crypto_data -c "SELECT 1;"
 uv run alembic upgrade head
 
 # Or create tables manually
-uv run python -c "from dagster_crypto_data.connectors.database import init_db; init_db()"
+uv run python -c "from dagster_crypto_data.defs.connectors.database import init_db; init_db()"
 ```
 
 ### Database connection pool exhausted
@@ -398,7 +398,7 @@ def extract_with_retry(exchange, symbol):
 print(raw_data)
 
 # Validate manually
-from dagster_crypto_data.models import OHLCVData
+from dagster_crypto_data.defs.defs.models import OHLCVData
 try:
     OHLCVData(**raw_data)
 except ValidationError as e:

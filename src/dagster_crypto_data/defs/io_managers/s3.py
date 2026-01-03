@@ -28,7 +28,7 @@ class S3IOManager(ConfigurableIOManager):
     Example:
         ```python
         from dagster import Definitions, EnvVar
-        from dagster_crypto_data.io_managers import S3IOManager
+        from dagster_crypto_data.defs.io_managers import S3IOManager
 
         # MinIO (local)
         defs = Definitions(

@@ -6,7 +6,7 @@ import ccxt
 import pytest
 from pydantic import ValidationError
 
-from dagster_crypto_data.resources.exchange import CCXTExchangeResource
+from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
 
 
 class TestCCXTExchangeResource:

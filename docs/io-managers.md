@@ -20,7 +20,7 @@ IO Managers handle the storage and retrieval of these data types, allowing you t
 
 ```python
 from dagster import Definitions
-from dagster_crypto_data.io_managers import FilesystemIOManager
+from dagster_crypto_data.defs.io_managers import FilesystemIOManager
 
 defs = Definitions(
     assets=[...],
@@ -46,7 +46,7 @@ defs = Definitions(
 
 ```python
 from dagster import Definitions, EnvVar
-from dagster_crypto_data.io_managers import S3IOManager
+from dagster_crypto_data.defs.io_managers import S3IOManager
 
 # MinIO (local/staging)
 defs = Definitions(
@@ -92,7 +92,7 @@ defs = Definitions(
 
 ```python
 from dagster import Definitions
-from dagster_crypto_data.io_managers import DuckDBIOManager
+from dagster_crypto_data.defs.io_managers import DuckDBIOManager
 
 defs = Definitions(
     assets=[...],
@@ -121,7 +121,7 @@ defs = Definitions(
 
 ```python
 from dagster import Definitions
-from dagster_crypto_data.io_managers import KuzuDBIOManager
+from dagster_crypto_data.defs.io_managers import KuzuDBIOManager
 
 defs = Definitions(
     assets=[...],
@@ -164,7 +164,7 @@ print(result.get_as_df())
 
 ```python
 from dagster import Definitions, EnvVar
-from dagster_crypto_data.io_managers import SQLIOManager
+from dagster_crypto_data.defs.io_managers import SQLIOManager
 
 # PostgreSQL (production)
 defs = Definitions(

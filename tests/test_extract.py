@@ -7,7 +7,7 @@ import pytest
 from dagster import materialize
 from pydantic import ValidationError
 
-from dagster_crypto_data.assets.extract import (
+from dagster_crypto_data.defs.assets.extract import (
     ExtractAssetConfig,
     extract_asset_factory,
 )

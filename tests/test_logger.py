@@ -5,7 +5,7 @@ import logging
 import pytest
 import structlog
 
-from dagster_crypto_data.utils.logger import get_logger
+from dagster_crypto_data.defs.utils.logger import get_logger
 
 
 @pytest.fixture(autouse=True)

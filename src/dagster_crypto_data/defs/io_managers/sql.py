@@ -8,7 +8,7 @@ import narwhals as nw
 from dagster import ConfigurableIOManager, InputContext, OutputContext
 from pydantic import Field
 
-from dagster_crypto_data.connectors.database import DatabaseManagement
+from dagster_crypto_data.defs.connectors.database import DatabaseManagement
 
 if TYPE_CHECKING:
     from narwhals.typing import FrameT
@@ -32,7 +32,7 @@ class SQLIOManager(ConfigurableIOManager):
     Example:
         ```python
         from dagster import Definitions, EnvVar
-        from dagster_crypto_data.io_managers import SQLIOManager
+        from dagster_crypto_data.defs.io_managers import SQLIOManager
 
         # PostgreSQL (production)
         defs = Definitions(
