@@ -74,7 +74,7 @@ class TestCCXTExchangeResource:
 
         with (
             patch("ccxt.exchanges", ["binance"]),
-            patch("dagster_crypto_data.resources.exchange.getattr") as mock_getattr,
+            patch("dagster_crypto_data.defs.resources.exchange.getattr") as mock_getattr,
         ):
             mock_getattr.return_value = mock_binance_class
             client = resource.get_client()
