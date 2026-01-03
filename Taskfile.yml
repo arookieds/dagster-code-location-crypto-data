@@ -1,13 +1,39 @@
-# yaml-language-server: $schema=https://taskfile.dev/schema.json
-
 version: '3'
 
-vars:
-  GREETING: Hello, world!
-
 tasks:
-  default:
-    desc: Print a greeting message
+  dev:
+    desc: Start Dagster development server
     cmds:
-      - echo "{{.GREETING}}"
-    silent: true
+      - uv run dg dev
+
+  test:
+    desc: Run tests with detailed tracebacks
+    cmds:
+      - uv run pytest --tb=long
+
+  clean:
+    desc: Clean temporary files, caches, and local run data
+    cmds:
+      - rm -rf .pytest_cache .ruff_cache .mypy_cache .coverage htmlcov site/ local_runs/ tmp*.db
+
+  docs:
+    desc: Start MkDocs development server
+    cmds:
+      - uv run mkdocs serve
+
+  lint:
+    desc: Run ruff linter and formatter checks
+    cmds:
+      - uv run ruff check .
+      - uv run ruff format --check .
+
+  validate:
+    desc: Validate Dagster definitions
+    cmds:
+      - uv run dg check defs
+
+  default:
+    desc: Run linting and tests (pre-flight check)
+    cmds:
+      - task: lint
+      - task: test
