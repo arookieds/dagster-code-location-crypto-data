@@ -22,7 +22,7 @@ class SampleTeam(SQLModel, table=True):
 
 
 @pytest.fixture
-def temp_db_file() -> Generator[str, None, None]:
+def temp_db_file() -> Generator[str]:
     """Provides a temporary file path for a SQLite database."""
     fd, path = tempfile.mkstemp(suffix=".db")
     os.close(fd)
@@ -82,9 +82,13 @@ def test_url_generation_postgresql() -> None:
         password="pass",
         db_type="postgresql",
     )
+    # SQLAlchemy's URL object - need to convert to string to check
+    url_str = str(dm_pg.url)
     # SQLAlchemy's URL.create() hides passwords with ***
-    assert "postgresql://user:" in dm_pg.url
-    assert "@localhost:5432/crypto" in dm_pg.url
+    assert "postgresql://user:" in url_str
+    assert "@localhost:5432/crypto" in url_str
+    # Verify password is masked in string representation
+    assert "***" in url_str
 
 
 def test_url_generation_with_special_characters() -> None:
@@ -98,10 +102,11 @@ def test_url_generation_with_special_characters() -> None:
         db_type="postgresql",
     )
     # URL.create() should properly encode special characters
-    assert "localhost:5432/crypto" in dm_pg.url
-    assert "user" in dm_pg.url
+    url_str = str(dm_pg.url)
+    assert "localhost:5432/crypto" in url_str
+    assert "user" in url_str
     # Password should be URL-encoded or hidden
-    assert "p@ss:w/rd#123" not in dm_pg.url  # Raw password should not appear
+    assert "p@ss:w/rd#123" not in url_str  # Raw password should not appear
 
 
 def test_url_generation_mysql() -> None:
@@ -114,9 +119,13 @@ def test_url_generation_mysql() -> None:
         password="secret",
         db_type="mysql",
     )
+    # SQLAlchemy's URL object - need to convert to string to check
+    url_str = str(dm_mysql.url)
     # SQLAlchemy's URL.create() hides passwords with ***
-    assert "mysql://admin:" in dm_mysql.url
-    assert "@db.example.com:3306/mydb" in dm_mysql.url
+    assert "mysql://admin:" in url_str
+    assert "@db.example.com:3306/mydb" in url_str
+    # Verify password is masked in string representation
+    assert "***" in url_str
 
 
 # ============================================================================

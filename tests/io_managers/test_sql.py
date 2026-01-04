@@ -239,12 +239,21 @@ class TestSQLIOManagerPostgreSQL:
         db_manager = io_manager._get_db_manager()
         assert db_manager.db_type == "sqlite"
 
-    def test_invalid_db_type_raises_validation_error(
-        self,
-    ) -> None:
-        """Test that invalid db_type raises validation error."""
-        with pytest.raises(ValueError):
-            SQLIOManager(
-                db_type="mysql",  # Not supported
-                db_name="test",
-            )
+    def test_mysql_configuration(self) -> None:
+        """Test MySQL IO manager configuration (now supported)."""
+        io_manager = SQLIOManager(
+            db_type="mysql",
+            host="localhost",
+            port=3306,
+            db_name="test_db",
+            username="test_user",
+            password="test_password",
+            schema="analytics",
+        )
+
+        assert io_manager.db_type == "mysql"
+        assert io_manager.host == "localhost"
+        assert io_manager.port == 3306
+        assert io_manager.db_name == "test_db"
+        assert io_manager.username == "test_user"
+        assert io_manager.schema == "analytics"

@@ -15,19 +15,23 @@ if TYPE_CHECKING:
 
 
 class SQLIOManager(ConfigurableIOManager):
-    """Store DataFrames in SQL databases (PostgreSQL, SQLite) using DatabaseManagement.
+    """Store DataFrames in SQL databases using DatabaseManagement and ADBC/Arrow.
 
-    This IO manager leverages the existing DatabaseManagement connector which
-    supports both PostgreSQL and SQLite. It stores Polars DataFrames as SQL tables.
+    This IO manager leverages the existing DatabaseManagement connector and uses
+    ADBC (Arrow Database Connectivity) for efficient, zero-copy data transfers.
+    It stores Polars DataFrames as SQL tables.
+
+    Supports any SQLAlchemy-compatible database including PostgreSQL, MySQL,
+    MariaDB, Oracle, SQL Server, SQLite, and more.
 
     Attributes:
-        db_type: Database type ('postgresql' or 'sqlite')
-        host: Database host (for PostgreSQL)
-        port: Database port (for PostgreSQL)
+        db_type: Database type (e.g., 'postgresql', 'mysql', 'sqlite')
+        host: Database host (required for server-based databases)
+        port: Database port (required for server-based databases)
         database: Database name or SQLite file path
-        username: Database username (for PostgreSQL)
-        password: Database password (for PostgreSQL, use EnvVar for security)
-        schema: Database schema name (default: public)
+        username: Database username (required for server-based databases)
+        password: Database password (required for server-based databases, use EnvVar)
+        schema: Database schema name (default: public, not used for SQLite)
 
     Example:
         ```python
@@ -50,7 +54,23 @@ class SQLIOManager(ConfigurableIOManager):
             },
         )
 
-        # SQLite (local)
+        # MySQL (production)
+        defs = Definitions(
+            assets=[...],
+            resources={
+                "io_manager": SQLIOManager(
+                    db_type="mysql",
+                    host=EnvVar("MYSQL_HOST"),
+                    port=3306,
+                    database=EnvVar("MYSQL_DATABASE"),
+                    username=EnvVar("MYSQL_USER"),
+                    password=EnvVar("MYSQL_PASSWORD"),
+                    schema="analytics",
+                ),
+            },
+        )
+
+        # SQLite (local development)
         defs = Definitions(
             assets=[...],
             resources={
@@ -64,8 +84,7 @@ class SQLIOManager(ConfigurableIOManager):
     """
 
     db_type: str = Field(
-        description="Database type: 'postgresql' or 'sqlite'",
-        pattern="^(postgresql|sqlite)$",
+        description="Database type (e.g., 'postgresql', 'mysql', 'mariadb', 'sqlite')",
     )
     host: str = Field(
         default="localhost",
@@ -177,19 +196,26 @@ class SQLIOManager(ConfigurableIOManager):
         # Write DataFrame to SQL
         # Convert to native DataFrame for database operations
         native_df = nw.to_native(df)
-        connection_string = str(engine.url)
 
-        # Use ADBC for PostgreSQL and SQLite (both have ADBC drivers)
+        # Build connection URI string for ADBC
+        # SQLAlchemy URL.render_as_string() with hide_password=False gives us the real URI
+        # SQLite is file-based and doesn't need authentication, all others do
+        if self.db_type == "sqlite":
+            connection_uri = str(engine.url)
+        else:  # postgresql, mysql, mariadb, oracle, mssql, etc.
+            connection_uri = engine.url.render_as_string(hide_password=False)
+
+        # Use Polars write_database with ADBC engine for Arrow-based writes
         native_df.write_database(
-            table_name=table_name,
-            connection=connection_string,
+            table_name=full_table_name,  # Use full table name with schema
+            connection=connection_uri,
             if_table_exists="replace",
-            engine="adbc",
+            engine="adbc",  # Use ADBC/Arrow for efficient writes
         )
 
         row_count = len(native_df) if hasattr(native_df, "__len__") else 0
         context.log.info(
-            f"Stored {row_count} rows to {self.db_type} table {full_table_name}"
+            f"Stored {row_count} rows to {self.db_type} table {full_table_name} using ADBC"
         )
 
     def load_input(self, context: InputContext) -> FrameT:
