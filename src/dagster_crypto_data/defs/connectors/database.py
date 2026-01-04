@@ -72,22 +72,26 @@ class DatabaseManagement(BaseModel):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def url(self) -> str:
+    def url(self) -> URL | str:
         """Generate SQLAlchemy connection URL.
         Returns:
             Formatted database connection URL string.
         """
         if self.db_type not in ("sqlite", "duckdb"):
-            # Use SQLAlchemy's URL builder for safe encoding
+            # Strip whitespace from password (handles newlines from env vars)
+            clean_password = self.password.strip()
+
+            # Use SQLAlchemy's URL.create() for secure URL building
+            # This avoids exposing credentials in f-strings or logs
             url_obj = URL.create(
                 drivername=self.db_type,
                 username=self.username,
-                password=self.password,
+                password=clean_password,
                 host=self.host,
                 port=self.port,
                 database=self.db_name,
             )
-            return str(url_obj)
+            return url_obj
         return f"{self.db_type}:///{self.db_name}.db"
 
     @property
