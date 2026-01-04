@@ -268,8 +268,9 @@ def extract_ohlcv_data(
 ## Important Configuration Notes
 
 ### Python Version
-- **Required:** Python >= 3.14
+- **Required:** Python 3.14 (specified in `.python-version`)
 - Check with: `python --version` or `cat .python-version`
+- Managed by `uv` - automatically uses correct version
 
 ### Ruff Linter Rules (Enabled)
 - `E` - pycodestyle errors
@@ -370,14 +371,21 @@ logger.error("Failed to fetch data", error=str(e), retry_count=3)
 ```
 project/
 ├── src/
-│   ├── definitions.py          # Dagster Definitions entrypoint
 │   └── dagster_crypto_data/
+│       ├── definitions.py          # Dagster Definitions entrypoint
+│       ├── defs/
+│       │   ├── assets/             # Asset factories (extract, transform)
+│       │   ├── connectors/         # Database connectors
+│       │   ├── io_managers/        # Custom IO managers
+│       │   ├── models/             # Pydantic/SQLModel models
+│       │   ├── resources/          # Dagster resources (CCXT exchange)
+│       │   └── utils/              # Utilities (logger, settings)
 │       └── __init__.py
-├── tests/                       # Test files (currently empty)
-├── docs/                        # Documentation and diagrams
-├── pyproject.toml               # Project configuration
-├── uv.lock                      # Locked dependencies (DO NOT edit manually)
-└── .python-version              # Python version specification
+├── tests/                          # Test files (110 tests)
+├── docs/                           # Documentation and diagrams
+├── pyproject.toml                  # Project configuration
+├── uv.lock                         # Locked dependencies (DO NOT edit manually)
+└── .python-version                 # Python version specification
 ```
 
 ---
@@ -437,6 +445,6 @@ class DatabaseConfig(BaseModel):
 
 ---
 
-**Last Updated:** 2025-12-31  
+**Last Updated:** 2026-01-04  
 **Dagster Module:** `src.definitions`  
 **Python Version:** 3.14+
