@@ -2,7 +2,12 @@ from dagster import Definitions, ScheduleDefinition, define_asset_job
 
 from dagster_crypto_data.defs.assets.extract import extract_asset_factory
 from dagster_crypto_data.defs.assets.transform import transform_asset_factory
-from dagster_crypto_data.defs.io_managers import DuckDBIOManager, FilesystemIOManager
+from dagster_crypto_data.defs.io_managers import (
+    DuckDBIOManager,
+    FilesystemIOManager,
+    S3IOManager,
+    SQLIOManager,
+)
 from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
 from dagster_crypto_data.defs.utils import get_logger, get_settings
 
@@ -22,7 +27,7 @@ binance_transform = transform_asset_factory(
     group_name="transform",
     exchange_id="binance",
     source_asset_key="binance_raw_tickers",
-    io_manager_key="duckdb_io_manager",
+    io_manager_key="transform_io_manager",
 )
 
 # Define jobs
@@ -47,13 +52,34 @@ transform_schedule = ScheduleDefinition(
     cron_schedule="*/10 * * * *",  # Every 10 minutes
 )
 
+# Configure IO managers based on IS_PRODUCTION
+if settings.is_production:
+    extract_io_manager = S3IOManager(
+        endpoint_url=settings.s3_url,
+        access_key=settings.s3_user,
+        secret_key=settings.s3_password.get_secret_value(),
+        bucket=settings.s3_bucket,
+        use_ssl=not settings.s3_url.startswith("http://"),
+    )
+    transform_io_manager = SQLIOManager(
+        db_type="postgresql",
+        host=settings.db_host,
+        port=settings.db_port,
+        db_name=settings.db_name,
+        username=settings.db_username,
+        password=settings.db_password.get_secret_value(),
+    )
+else:
+    extract_io_manager = FilesystemIOManager(base_path="./local_runs")
+    transform_io_manager = DuckDBIOManager(db_path="./local_runs/crypto.duckdb")
+
 defs = Definitions(
     assets=[binance_extract, binance_transform],
     jobs=[extract_job, transform_job],
     schedules=[extract_schedule, transform_schedule],
     resources={
-        "io_manager": FilesystemIOManager(base_path="./local_runs"),
-        "duckdb_io_manager": DuckDBIOManager(db_path="./local_runs/crypto.duckdb"),
+        "io_manager": extract_io_manager,
+        "transform_io_manager": transform_io_manager,
         "exchange": CCXTExchangeResource(exchange_id="binance"),
     },
 )
