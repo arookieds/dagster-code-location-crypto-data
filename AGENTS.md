@@ -107,6 +107,44 @@ uv run dagster asset list
 uv run dagster asset materialize <asset_name>
 ```
 
+### Documentation
+
+```bash
+# Serve documentation with live reload (recommended)
+uv run mkdocs serve --livereload
+
+# Note: --livereload flag is required due to Click library compatibility issue
+# Without it, file watching may not work properly
+
+# Serve on custom port
+uv run mkdocs serve --livereload -a localhost:9000
+
+# Build static site
+uv run mkdocs build
+```
+
+### Docker & Kubernetes
+
+```bash
+# Build Docker image
+docker build -t ghcr.io/arookieds/dagster-code-location-crypto-data:latest .
+
+# Push to registry
+docker push ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+
+# Deploy to Kubernetes (uses Helm chart via Kustomize)
+kubectl apply -k manifests/
+
+# Check deployment status
+kubectl get pods -n dagster -l app=crypto-data
+
+# View logs
+kubectl logs -n dagster -l app=crypto-data -f
+
+# Restart deployment
+kubectl rollout restart deployment/crypto-data-crypto-data -n dagster
+```
+
 ---
 
 ## Code Style Guidelines
@@ -268,8 +306,9 @@ def extract_ohlcv_data(
 ## Important Configuration Notes
 
 ### Python Version
-- **Required:** Python >= 3.14
+- **Required:** Python 3.14 (specified in `.python-version`)
 - Check with: `python --version` or `cat .python-version`
+- Managed by `uv` - automatically uses correct version
 
 ### Ruff Linter Rules (Enabled)
 - `E` - pycodestyle errors
@@ -370,14 +409,21 @@ logger.error("Failed to fetch data", error=str(e), retry_count=3)
 ```
 project/
 ├── src/
-│   ├── definitions.py          # Dagster Definitions entrypoint
 │   └── dagster_crypto_data/
+│       ├── definitions.py          # Dagster Definitions entrypoint
+│       ├── defs/
+│       │   ├── assets/             # Asset factories (extract, transform)
+│       │   ├── connectors/         # Database connectors
+│       │   ├── io_managers/        # Custom IO managers
+│       │   ├── models/             # Pydantic/SQLModel models
+│       │   ├── resources/          # Dagster resources (CCXT exchange)
+│       │   └── utils/              # Utilities (logger, settings)
 │       └── __init__.py
-├── tests/                       # Test files (currently empty)
-├── docs/                        # Documentation and diagrams
-├── pyproject.toml               # Project configuration
-├── uv.lock                      # Locked dependencies (DO NOT edit manually)
-└── .python-version              # Python version specification
+├── tests/                          # Test files (110 tests)
+├── docs/                           # Documentation and diagrams
+├── pyproject.toml                  # Project configuration
+├── uv.lock                         # Locked dependencies (DO NOT edit manually)
+└── .python-version                 # Python version specification
 ```
 
 ---
@@ -437,6 +483,6 @@ class DatabaseConfig(BaseModel):
 
 ---
 
-**Last Updated:** 2025-12-31  
+**Last Updated:** 2026-01-04  
 **Dagster Module:** `src.definitions`  
 **Python Version:** 3.14+

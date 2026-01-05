@@ -218,3 +218,14 @@ __marimo__/
 # OpenCode
 .opencode
 local_runs/
+
+# Kubernetes secrets (DO NOT COMMIT)
+manifests/.env
+manifests/sealed-secrets/
+
+# DuckDB databases
+*.duckdb
+*.duckdb.wal
+
+# KuzuDB databases
+*.kuzu/

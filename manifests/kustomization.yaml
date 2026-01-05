@@ -1,0 +1,111 @@
+# Dagster Crypto Data Code Location - Kubernetes Deployment
+# Deploys a Dagster user code location using Helm chart override pattern
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: dagster
+
+resources:
+  - configmap.yaml
+  # - sealed-secrets/dagster-crypto-secrets-sealed.yaml  # Uncomment after generating
+
+helmCharts:
+  - name: dagster-user-deployments
+    repo: https://dagster-io.github.io/helm
+    version: 1.12.6
+    releaseName: crypto-data
+    namespace: dagster
+    valuesInline:
+      deployments:
+        - name: "crypto-data"
+          image:
+            repository: "ghcr.io/arookieds/dagster-code-location-crypto-data"
+            tag: "latest"
+            pullPolicy: "Always"
+          
+          dagsterApiGrpcArgs:
+            - "--module-name"
+            - "dagster_crypto_data.definitions"
+          
+          port: 3030
+          
+          # Environment variables from ConfigMap
+          envConfigMaps:
+            - name: dagster-crypto-config
+          
+          # Environment variables from Secrets
+          envSecrets:
+            - name: dagster-crypto-secrets
+          
+          # Additional environment variables
+          env:
+            - name: DAGSTER_CURRENT_IMAGE
+              value: "ghcr.io/arookieds/dagster-code-location-crypto-data:latest"
+          
+          # Resource limits
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 256Mi
+          
+          # Liveness probe
+          livenessProbe:
+            exec:
+              command:
+                - "python"
+                - "-c"
+                - "import dagster; print('alive')"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          
+          # Readiness probe
+          readinessProbe:
+            tcpSocket:
+              port: 3030
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+          
+          # Pod security context
+          podSecurityContext:
+            fsGroup: 1000
+          
+          # Service configuration
+          service:
+            type: ClusterIP
+            port: 3030
+          
+          # Annotations
+          annotations:
+            description: "Dagster code location for crypto data pipelines"
+            repository: "https://github.com/arookieds/dagster-code-location-crypto-data"
+          
+          # Labels
+          labels:
+            app: dagster-crypto-data
+            component: code-location
+            managed-by: kustomize
+
+# Common labels applied to all resources
+commonLabels:
+  project: dagster-crypto-data
+
+# Common annotations
+commonAnnotations:
+  managed-by: "kustomize"
