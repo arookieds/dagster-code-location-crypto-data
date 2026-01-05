@@ -147,7 +147,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
         schema_parts = []
         primary_key = None
 
-        for col_name, dtype in zip(native_df.columns, native_df.dtypes):  # type: ignore[attr-defined]
+        for col_name, dtype in zip(native_df.columns, native_df.dtypes, strict=True):  # type: ignore[attr-defined]
             # Map Polars types to KuzuDB types
             if dtype == pl.Int64 or dtype == pl.Int32:
                 kuzu_type = "INT64"
@@ -183,8 +183,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
         # Convert DataFrame to list of tuples for insertion
         for row in native_df.iter_rows():  # type: ignore[attr-defined]
             # Build INSERT query
-            values = ", ".join([f"'{v}'" if isinstance(v, str) else str(v) for v in row])
-            insert_query = f"CREATE (:{table_name} {{{', '.join([f'{col}: {val}' for col, val in zip(native_df.columns, row)])}}});"  # type: ignore[attr-defined]
+            insert_query = f"CREATE (:{table_name} {{{', '.join([f'{col}: {val}' for col, val in zip(native_df.columns, row, strict=True)])}}});"  # type: ignore[attr-defined]
             try:
                 conn.execute(insert_query)
             except Exception as e:

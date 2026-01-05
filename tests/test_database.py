@@ -1,13 +1,16 @@
 import os
 import tempfile
-from collections.abc import Generator
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 from sqlalchemy import inspect
 from sqlmodel import Field, SQLModel
 
 from dagster_crypto_data.defs.connectors.database import DatabaseManagement
+
+if TYPE_CHECKING:
+    from collections.abc import Generator
 
 
 # Define sample models for testing
@@ -323,7 +326,7 @@ def test_str_does_not_expose_password() -> None:
 
     # Pydantic's default __str__ shows all fields, so we need to check __repr__ instead
     # which we've overridden
-    str_repr = str(dm)
+    str(dm)
 
     # The overridden __repr__ should be used by str() as well
     # But Pydantic might use its own __str__, so let's just verify repr works
@@ -425,8 +428,8 @@ def test_same_url_different_instances_different_engines() -> None:
     assert dm1.url == dm2.url
 
     # Access engines
-    engine1 = dm1.engine
-    engine2 = dm2.engine
+    assert dm1.engine is not None
+    assert dm2.engine is not None
 
     # Each instance should have its own engine (not shared)
     assert dm1._engine is not None

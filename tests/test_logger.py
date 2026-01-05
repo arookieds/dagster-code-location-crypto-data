@@ -154,7 +154,7 @@ def test_log_level_mixed_case() -> None:
 
 def test_console_renderer_in_development() -> None:
     """Verifies that ConsoleRenderer is used when use_json=False."""
-    logger = get_logger(__name__, use_json=False)
+    get_logger(__name__, use_json=False)
 
     # Get the structlog configuration
     config = structlog.get_config()
@@ -169,7 +169,7 @@ def test_console_renderer_in_development() -> None:
 
 def test_json_renderer_in_production() -> None:
     """Verifies that JSONRenderer is used when use_json=True."""
-    logger = get_logger(__name__, use_json=True)
+    get_logger(__name__, use_json=True)
 
     # Get the structlog configuration
     config = structlog.get_config()
@@ -244,7 +244,7 @@ def test_logger_can_log_error_with_exception() -> None:
 
 def test_logger_has_timestamp_processor() -> None:
     """Verifies that TimeStamper processor is configured."""
-    logger = get_logger(__name__)
+    get_logger(__name__)
 
     config = structlog.get_config()
     processors = config["processors"]
@@ -257,7 +257,7 @@ def test_logger_has_timestamp_processor() -> None:
 
 def test_logger_has_log_level_processor() -> None:
     """Verifies that add_log_level processor is configured."""
-    logger = get_logger(__name__)
+    get_logger(__name__)
 
     config = structlog.get_config()
     processors = config["processors"]
@@ -268,7 +268,7 @@ def test_logger_has_log_level_processor() -> None:
 
 def test_logger_has_stack_info_processor() -> None:
     """Verifies that StackInfoRenderer processor is configured."""
-    logger = get_logger(__name__)
+    get_logger(__name__)
 
     config = structlog.get_config()
     processors = config["processors"]

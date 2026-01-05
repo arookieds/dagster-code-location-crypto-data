@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from dagster import (
@@ -16,6 +15,9 @@ from dagster import (
 )
 
 from dagster_crypto_data.defs.io_managers import FilesystemIOManager
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture

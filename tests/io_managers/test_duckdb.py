@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import polars as pl
 import pytest
@@ -15,6 +15,9 @@ from dagster import (
 )
 
 from dagster_crypto_data.defs.io_managers import DuckDBIOManager
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 @pytest.fixture
