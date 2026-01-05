@@ -460,6 +460,8 @@ class DatabaseConfig(BaseModel):
 5. ❌ Use relative imports for application code
 6. ❌ Ignore linter errors without good reason
 7. ❌ Expose passwords in `__repr__`, `__str__`, or logs
+8. ❌ **Perform Git operations (commit, push, tag, merge) without explicit user request**
+9. ❌ **Merge to `main` or `master` without a Pull Request unless explicitly instructed**
 
 ---
 

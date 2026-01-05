@@ -99,7 +99,7 @@ defs = Definitions(
     resources={
         "transform_io_manager": DuckDBIOManager(
             db_path="./data/crypto.duckdb",
-            schema="analytics",
+            db_schema="analytics",
         ),
     },
 )
@@ -177,7 +177,7 @@ defs = Definitions(
             db_name=EnvVar("POSTGRESQL_DATABASE"),
             username=EnvVar("POSTGRESQL_USER"),
             password=EnvVar("POSTGRESQL_PASSWORD"),
-            schema="analytics",
+            db_schema="analytics",
         ),
     },
 )
@@ -256,7 +256,7 @@ io_managers = {
         db_name="crypto_prod",
         username=EnvVar("POSTGRESQL_USER"),
         password=EnvVar("POSTGRESQL_PASSWORD"),
-        schema="public",
+        db_schema="public",
     ),
 }
 ```

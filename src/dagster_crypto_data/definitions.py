@@ -1,4 +1,9 @@
-from dagster import Definitions, ScheduleDefinition, define_asset_job
+from dagster import (
+    ConfigurableIOManager,
+    Definitions,
+    ScheduleDefinition,
+    define_asset_job,
+)
 
 from dagster_crypto_data.defs.assets.extract import extract_asset_factory
 from dagster_crypto_data.defs.assets.transform import transform_asset_factory
@@ -53,6 +58,9 @@ transform_schedule = ScheduleDefinition(
 )
 
 # Configure IO managers based on IS_PRODUCTION
+extract_io_manager: ConfigurableIOManager
+transform_io_manager: ConfigurableIOManager
+
 if settings.is_production:
     extract_io_manager = S3IOManager(
         endpoint_url=settings.s3_url,

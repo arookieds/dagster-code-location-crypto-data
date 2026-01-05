@@ -3,7 +3,7 @@ import uuid
 from sqlmodel import BOOLEAN, JSON, TEXT, UUID, Field, SQLModel
 
 
-class DagsterConfig(SQLModel, table=True):  # type: ignore[call-arg]
+class DagsterConfig(SQLModel, table=True):
     id: UUID | None = Field(default_factory=uuid.uuid7, primary_key=True)
     exchange: TEXT = Field(description="Name of the exchange")
     enabled: BOOLEAN = Field(description="Enable the exchange")

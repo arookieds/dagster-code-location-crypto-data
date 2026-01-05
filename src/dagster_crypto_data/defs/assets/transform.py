@@ -1,11 +1,17 @@
-from __future__ import annotations
-
 import time
 from typing import Any
 
 import ccxt
 import narwhals as nw
-from dagster import AssetIn, AssetKey, AssetsDefinition, MetadataValue, Output, asset
+from dagster import (
+    AssetExecutionContext,
+    AssetIn,
+    AssetKey,
+    AssetsDefinition,
+    MetadataValue,
+    Output,
+    asset,
+)
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -117,7 +123,9 @@ def transform_asset_factory(
             ),
         },
     )
-    def build_asset(context, raw_data: dict[str, Any]) -> Output[nw.DataFrame]:
+    def build_asset(
+        context: AssetExecutionContext, raw_data: dict[str, Any]
+    ) -> Output[nw.DataFrame]:
         """Transform raw ticker data into structured DataFrame.
 
         Args:
@@ -154,7 +162,7 @@ def transform_asset_factory(
                 )
                 # Return empty DataFrame with schema using Narwhals
                 # Create empty dict with schema
-                empty_data = {
+                empty_data: dict[str, list[Any]] = {
                     "symbol": [],
                     "timestamp": [],
                     "datetime": [],

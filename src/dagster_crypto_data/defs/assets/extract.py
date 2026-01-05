@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 import time
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import ccxt
-from dagster import AssetsDefinition, MetadataValue, Output, asset
+from dagster import AssetExecutionContext, AssetsDefinition, MetadataValue, Output, asset
 from pydantic import BaseModel, Field, field_validator
 
 if TYPE_CHECKING:
@@ -100,7 +98,7 @@ def extract_asset_factory(
         io_manager_key=config.io_manager_key,
         required_resource_keys={"exchange"},
     )
-    def build_asset(context) -> Output[dict[str, Any]]:
+    def build_asset(context: AssetExecutionContext) -> Output[dict[str, Any]]:
         # Access the resource from context
         exchange: CCXTExchangeResource = context.resources.exchange
         client = exchange.get_client()

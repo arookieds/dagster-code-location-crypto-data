@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -155,7 +155,7 @@ class S3IOManager(ConfigurableIOManager):
             json_data = response["Body"].read().decode("utf-8")
             data = json.loads(json_data)
             context.log.info(f"Loaded asset from s3://{self.bucket}/{s3_key}")
-            return data
+            return cast("dict[str, Any]", data)
         except ClientError as e:
             if e.response["Error"]["Code"] == "NoSuchKey":
                 raise FileNotFoundError(

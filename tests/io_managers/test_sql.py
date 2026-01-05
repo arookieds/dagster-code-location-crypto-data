@@ -198,7 +198,7 @@ class TestSQLIOManagerPostgreSQL:
             db_name="test_db",
             username="test_user",
             password="test_password",
-            schema="analytics",
+            db_schema="analytics",
         )
 
         assert io_manager.db_type == "postgresql"
@@ -206,7 +206,7 @@ class TestSQLIOManagerPostgreSQL:
         assert io_manager.port == 5432
         assert io_manager.db_name == "test_db"
         assert io_manager.username == "test_user"
-        assert io_manager.schema == "analytics"
+        assert io_manager.db_schema == "analytics"
 
     def test_postgresql_requires_credentials(self) -> None:
         """Test that PostgreSQL requires host, port, username, and password."""
@@ -248,7 +248,7 @@ class TestSQLIOManagerPostgreSQL:
             db_name="test_db",
             username="test_user",
             password="test_password",
-            schema="analytics",
+            db_schema="analytics",
         )
 
         assert io_manager.db_type == "mysql"
@@ -256,4 +256,4 @@ class TestSQLIOManagerPostgreSQL:
         assert io_manager.port == 3306
         assert io_manager.db_name == "test_db"
         assert io_manager.username == "test_user"
-        assert io_manager.schema == "analytics"
+        assert io_manager.db_schema == "analytics"

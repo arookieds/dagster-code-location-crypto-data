@@ -47,10 +47,13 @@ dagster-crypto-data = "dagster_crypto_data:main"
 dev = [
   "adbc-driver-sqlite>=1.9.0",
   "alembic>=1.17.2",
+  "boto3-stubs>=1.42.21",
   "dagster-dg-cli>=1.12.7",
   "dagster-webserver>=1.12.7",
   "duckdb>=1.4.3",
+  "mypy>=1.19.1",
   "ruff>=0.9.0",
+  "types-botocore>=1.0.2",
 ]
 docs = ["mkdocs>=1.6.1", "mkdocs-material>=9.7.1", "pymdown-extensions>=10.20"]
 testing = ["pytest>=9.0.2", "pytest-cov>=7.0.0"]
@@ -144,6 +147,8 @@ module = [
   "narwhals.*",
   "polars",
   "polars.*",
+  "kuzu",
+  "kuzu.*",
 ]
 ignore_missing_imports = true
 

@@ -29,7 +29,7 @@ def temp_db_path(tmp_path: Path) -> Path:
 @pytest.fixture
 def duckdb_io_manager(temp_db_path: Path) -> DuckDBIOManager:
     """Create DuckDBIOManager instance."""
-    return DuckDBIOManager(db_path=str(temp_db_path), schema="main")
+    return DuckDBIOManager(db_path=str(temp_db_path), db_schema="main")
 
 
 @pytest.fixture
@@ -211,7 +211,7 @@ class TestDuckDBIOManager:
         sample_dataframe: pl.DataFrame,
     ) -> None:
         """Test DuckDBIOManager with custom schema."""
-        io_manager = DuckDBIOManager(db_path=str(temp_db_path), schema="analytics")
+        io_manager = DuckDBIOManager(db_path=str(temp_db_path), db_schema="analytics")
         context = build_output_context(asset_key=AssetKey(["test_table"]))
 
         io_manager.handle_output(context, sample_dataframe)
