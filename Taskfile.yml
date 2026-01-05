@@ -28,6 +28,22 @@ tasks:
       - uv run ruff format --check .
       - uv run mypy src --extra-checks
 
+  build:
+    desc: Run Podman build and tag the image
+    cmds:
+      - podman build -t ghcr.io/arookieds/dagster-code-location-crypto-data:latest .
+
+  build-run:
+    desc: Run Podman build, tag the image, and runs it
+    cmds:
+      - task: build
+      - podman run --rm -p 3000:3000 ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+
+  run:
+    desc: Run Podman run on the built image
+    cmds:
+      - podman run --rm -p 3000:3000 ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+
   validate:
     desc: Validate Dagster definitions
     cmds:

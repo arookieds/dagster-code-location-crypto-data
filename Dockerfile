@@ -1,5 +1,5 @@
 # Build stage
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim as builder
 
 WORKDIR /app
 
@@ -37,6 +37,3 @@ ENV PATH="/app/.venv/bin:$PATH" \
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import dagster; print('healthy')" || exit 1
-
-# Default command
-CMD ["dagster", "api", "grpc", "-h", "0.0.0.0", "-p", "50051"]
