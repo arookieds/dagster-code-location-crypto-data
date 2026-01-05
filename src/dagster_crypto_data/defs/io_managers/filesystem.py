@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from dagster import ConfigurableIOManager, InputContext, OutputContext
 from pydantic import Field
@@ -109,4 +109,4 @@ class FilesystemIOManager(ConfigurableIOManager):
             data = json.load(f)
 
         context.log.info(f"Loaded asset from {filepath}")
-        return data
+        return cast("dict[str, Any]", data)

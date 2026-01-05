@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import narwhals as nw
 from dagster import ConfigurableIOManager, InputContext, OutputContext
@@ -45,7 +45,7 @@ class DuckDBIOManager(ConfigurableIOManager):
         default="./data/local.duckdb",
         description="Path to DuckDB database file",
     )
-    schema: str = Field(
+    db_schema: str = Field(
         default="main",
         description="Database schema name",
     )
@@ -107,20 +107,20 @@ class DuckDBIOManager(ConfigurableIOManager):
         conn = duckdb.connect(self.db_path)
         try:
             # Create schema if it doesn't exist (unless it's 'main')
-            if self.schema != "main":
-                conn.execute(f"CREATE SCHEMA IF NOT EXISTS {self.schema}")
+            if self.db_schema != "main":
+                conn.execute(f"CREATE SCHEMA IF NOT EXISTS {self.db_schema}")
 
             # Create or replace table from Arrow
             conn.execute(
-                f"CREATE OR REPLACE TABLE {self.schema}.{table_name} AS SELECT * FROM arrow_table"
+                f"CREATE OR REPLACE TABLE {self.db_schema}.{table_name} AS SELECT * FROM arrow_table"
             )
             context.log.info(
-                f"Stored {row_count} rows to DuckDB table {self.schema}.{table_name}"
+                f"Stored {row_count} rows to DuckDB table {self.db_schema}.{table_name}"
             )
         finally:
             conn.close()
 
-    def load_input(self, context: InputContext) -> FrameT:
+    def load_input(self, context: InputContext) -> Any:
         """Load a DataFrame from DuckDB.
 
         Args:
@@ -155,7 +155,7 @@ class DuckDBIOManager(ConfigurableIOManager):
             try:
                 # Query and convert to Arrow, then to Polars
                 result = conn.execute(
-                    f"SELECT * FROM {self.schema}.{table_name}"
+                    f"SELECT * FROM {self.db_schema}.{table_name}"
                 ).fetch_arrow_table()
 
                 # Convert Arrow to Polars (Narwhals-compatible)
@@ -163,13 +163,13 @@ class DuckDBIOManager(ConfigurableIOManager):
 
                 df = pl.from_arrow(result)
                 context.log.info(
-                    f"Loaded {len(df)} rows from DuckDB table {self.schema}.{table_name}"
+                    f"Loaded {len(df)} rows from DuckDB table {self.db_schema}.{table_name}"
                 )
                 # Return Polars DataFrame (Narwhals-compatible)
-                return df  # type: ignore[return-value]
+                return df
             finally:
                 conn.close()
         except Exception as e:
             raise ValueError(
-                f"Failed to load table {self.schema}.{table_name} from DuckDB: {e}"
+                f"Failed to load table {self.db_schema}.{table_name} from DuckDB: {e}"
             ) from e

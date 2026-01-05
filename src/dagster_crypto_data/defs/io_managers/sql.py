@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import narwhals as nw
 from dagster import ConfigurableIOManager, InputContext, OutputContext
@@ -103,7 +103,7 @@ class SQLIOManager(ConfigurableIOManager):
         default=None,
         description="Database password (required for PostgreSQL, use EnvVar for security)",
     )
-    schema: str = Field(
+    db_schema: str = Field(
         default="public",
         description="Database schema name",
     )
@@ -164,7 +164,7 @@ class SQLIOManager(ConfigurableIOManager):
             Full table name (e.g., "public.table" for PostgreSQL, "table" for SQLite)
         """
         if self.db_type == "postgresql":
-            return f"{self.schema}.{table_name}"
+            return f"{self.db_schema}.{table_name}"
         else:  # sqlite
             return table_name
 
@@ -218,7 +218,7 @@ class SQLIOManager(ConfigurableIOManager):
             f"Stored {row_count} rows to {self.db_type} table {full_table_name} using ADBC"
         )
 
-    def load_input(self, context: InputContext) -> FrameT:
+    def load_input(self, context: InputContext) -> Any:
         """Load a DataFrame from SQL database.
 
         Args:
@@ -248,7 +248,7 @@ class SQLIOManager(ConfigurableIOManager):
                 f"Loaded {len(df)} rows from {self.db_type} table {full_table_name}"
             )
             # Return Polars DataFrame (Narwhals-compatible)
-            return df  # type: ignore[return-value]
+            return df
         except Exception as e:
             raise ValueError(
                 f"Failed to load table {full_table_name} from {self.db_type}: {e}"

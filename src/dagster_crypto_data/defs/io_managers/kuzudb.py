@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import narwhals as nw
 from dagster import ConfigurableIOManager, InputContext, OutputContext
@@ -131,6 +131,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
             arrow_table = df.to_arrow()  # type: ignore[attr-defined]
             native_df = pl.from_arrow(arrow_table)
 
+        native_df = cast("pl.DataFrame", native_df)
         db, conn = self._get_kuzu_connection()
         table_name = self._get_node_table_name(context)
 
@@ -147,7 +148,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
         schema_parts = []
         primary_key = None
 
-        for col_name, dtype in zip(native_df.columns, native_df.dtypes, strict=True):  # type: ignore[attr-defined]
+        for col_name, dtype in zip(native_df.columns, native_df.dtypes, strict=True):
             # Map Polars types to KuzuDB types
             if dtype == pl.Int64 or dtype == pl.Int32:
                 kuzu_type = "INT64"
@@ -181,9 +182,9 @@ class KuzuDBIOManager(ConfigurableIOManager):
 
         # Insert data from Polars DataFrame
         # Convert DataFrame to list of tuples for insertion
-        for row in native_df.iter_rows():  # type: ignore[attr-defined]
+        for row in native_df.iter_rows():
             # Build INSERT query
-            insert_query = f"CREATE (:{table_name} {{{', '.join([f'{col}: {val}' for col, val in zip(native_df.columns, row, strict=True)])}}});"  # type: ignore[attr-defined]
+            insert_query = f"CREATE (:{table_name} {{{', '.join([f'{col}: {val}' for col, val in zip(native_df.columns, row, strict=True)])}}});"
             try:
                 conn.execute(insert_query)
             except Exception as e:
@@ -194,7 +195,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
             f"Stored {len(native_df)} rows to KuzuDB node table {table_name}"
         )
 
-    def load_input(self, context: InputContext) -> FrameT:
+    def load_input(self, context: InputContext) -> Any:
         """Load a DataFrame from KuzuDB node table.
 
         Args:

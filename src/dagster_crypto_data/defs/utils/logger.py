@@ -71,4 +71,6 @@ def get_logger(
             cache_logger_on_first_use=True,
         )
         _configured = True
-    return structlog.get_logger(name)
+    from typing import cast
+
+    return cast("structlog.BoundLogger", structlog.get_logger(name))
