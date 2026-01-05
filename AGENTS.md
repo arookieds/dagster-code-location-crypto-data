@@ -107,6 +107,44 @@ uv run dagster asset list
 uv run dagster asset materialize <asset_name>
 ```
 
+### Documentation
+
+```bash
+# Serve documentation with live reload (recommended)
+uv run mkdocs serve --livereload
+
+# Note: --livereload flag is required due to Click library compatibility issue
+# Without it, file watching may not work properly
+
+# Serve on custom port
+uv run mkdocs serve --livereload -a localhost:9000
+
+# Build static site
+uv run mkdocs build
+```
+
+### Docker & Kubernetes
+
+```bash
+# Build Docker image
+docker build -t ghcr.io/arookieds/dagster-code-location-crypto-data:latest .
+
+# Push to registry
+docker push ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+
+# Deploy to Kubernetes (uses Helm chart via Kustomize)
+kubectl apply -k manifests/
+
+# Check deployment status
+kubectl get pods -n dagster -l app=crypto-data
+
+# View logs
+kubectl logs -n dagster -l app=crypto-data -f
+
+# Restart deployment
+kubectl rollout restart deployment/crypto-data-crypto-data -n dagster
+```
+
 ---
 
 ## Code Style Guidelines

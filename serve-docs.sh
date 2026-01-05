@@ -11,4 +11,4 @@ echo "Press Ctrl+C to stop the server"
 echo ""
 
 # Serve documentation
-uv run mkdocs serve
+uv run mkdocs serve --livereload

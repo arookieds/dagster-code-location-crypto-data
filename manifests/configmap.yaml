@@ -1,0 +1,26 @@
+# ConfigMap for Dagster Crypto Data Code Location
+# Non-sensitive configuration values
+# These match the Settings class in src/dagster_crypto_data/defs/utils/settings.py
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dagster-crypto-config
+  namespace: dagster
+  annotations:
+    description: "Configuration for crypto data pipelines"
+data:
+  # Logging settings (matches Settings.log_level)
+  LOG_LEVEL: "INFO"
+  
+  # Environment flag (matches Settings.is_production)
+  IS_PRODUCTION: "true"
+  
+  # Database settings (matches Settings.db_*)
+  DB_HOST: "postgresql.database.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "crypto"
+  
+  # S3/MinIO settings (matches Settings.s3_*)
+  S3_URL: "http://minio.lxc.local:9000"
+  S3_BUCKET: "crypto-raw-data"
