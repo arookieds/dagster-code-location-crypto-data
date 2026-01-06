@@ -451,6 +451,153 @@ class DatabaseConfig(BaseModel):
 
 ---
 
+## Git Workflow and Branch Management
+
+### CRITICAL: Mandatory Git Workflow for All Changes
+
+**NEVER push directly to target branches (especially `main`) under any circumstances.** All changes MUST go through the Pull Request workflow, even for single-user development. This maintains best practices, ensures CI validation, and creates proper audit trails.
+
+#### Understanding User Commands
+
+When the user says:
+- **"push to main"** (while on `dev` branch) → means "merge `dev` to `main`"
+- **"push to dev"** (while on `feature1` branch) → means "merge `feature1` to `dev`"
+- **"merge feature1 to dev"** → explicitly merge source branch `feature1` into target branch `dev`
+- **"merge feature1 to main"** → explicitly merge source branch `feature1` into target branch `main`
+
+The general pattern is: **"merge <source-branch> to <target-branch>"** or contextually infer from current branch.
+
+#### Required Workflow for Merging Any Branch
+
+When instructed to merge changes (e.g., "push to main", "merge feature1 to dev"), you MUST follow this exact sequence:
+
+**Step 1: Identify Source and Target Branches**
+- **Source branch**: The branch containing the new changes (e.g., `dev`, `feature1`)
+- **Target branch**: The branch to merge into (e.g., `main`, `dev`)
+
+**Step 2: Commit and Push Source Branch**
+```bash
+# Ensure you're on the source branch
+git checkout <source-branch>
+
+# Commit any pending changes
+git add <files>
+git commit -m "descriptive message"
+
+# Push source branch to remote
+git push origin <source-branch>
+```
+
+**Step 3: Create Pull Request**
+```bash
+gh pr create \
+  --title "Title describing the changes" \
+  --body "Detailed description" \
+  --head <source-branch> \
+  --base <target-branch>
+```
+
+**Step 4: Wait for CI Checks to Pass**
+```bash
+gh pr checks <PR_NUMBER> --watch
+```
+
+**Step 5: Merge Pull Request** (do NOT approve your own PR - merge only)
+```bash
+gh pr merge <PR_NUMBER> --merge --delete-branch=false
+```
+
+**Step 6: Synchronize Branches After Merge**
+```bash
+# Update local target branch
+git checkout <target-branch>
+git pull origin <target-branch>
+
+# Delete old source branch (local and remote)
+git branch -D <source-branch>
+git push origin --delete <source-branch>
+
+# Recreate source branch from updated target
+git checkout -b <source-branch>
+git push origin <source-branch>
+```
+
+#### Why This Workflow is Mandatory
+
+- **CI/CD Safety**: Ensures all changes pass automated tests before reaching the target branch
+- **Audit Trail**: PRs provide reviewable history of what changed and why
+- **Production Safety**: In corporate environments, direct pushes to `main` can trigger immediate deployments, break integration pipelines, or violate compliance requirements (SOC2, ISO, etc.)
+- **Branch Protection**: Simulates real-world branch protection rules that would prevent direct pushes
+- **Professional Discipline**: Builds proper Git habits that transfer to team/enterprise environments
+- **Flexibility**: Works for any branch strategy (feature → dev → main, hotfix → main, etc.)
+
+#### What NOT to Do
+
+- ❌ **NEVER** run `git push origin <target-branch>` after committing directly to the target branch
+- ❌ **NEVER** commit directly to the target branch and push (bypasses PR workflow)
+- ❌ **NEVER** bypass the PR workflow "because it's faster"
+- ❌ **NEVER** merge without waiting for CI checks to complete
+- ❌ **NEVER** force-push to protected branches like `main`
+
+#### Examples: Correct Workflows
+
+**Example 1: User says "push to main" (while on `dev` branch)**
+```bash
+# ✅ CORRECT - Merge dev → main via PR
+git checkout dev
+git add .
+git commit -m "feat: add new feature"
+git push origin dev
+gh pr create --title "feat: add new feature" --body "Description" --head dev --base main
+gh pr checks <PR#> --watch
+gh pr merge <PR#> --merge --delete-branch=false
+git checkout main && git pull origin main
+git branch -D dev && git push origin --delete dev
+git checkout -b dev && git push origin dev
+
+# ❌ INCORRECT - DO NOT DO THIS
+git checkout main
+git merge dev
+git push origin main  # ❌ FORBIDDEN! Bypasses PR workflow!
+```
+
+**Example 2: User says "merge feature1 to dev"**
+```bash
+# ✅ CORRECT - Merge feature1 → dev via PR
+git checkout feature1
+git add .
+git commit -m "feat: implement feature1"
+git push origin feature1
+gh pr create --title "feat: implement feature1" --body "Description" --head feature1 --base dev
+gh pr checks <PR#> --watch
+gh pr merge <PR#> --merge --delete-branch=false
+git checkout dev && git pull origin dev
+git branch -D feature1 && git push origin --delete feature1
+git checkout -b feature1 && git push origin feature1
+
+# ❌ INCORRECT - DO NOT DO THIS
+git checkout dev
+git merge feature1
+git push origin dev  # ❌ FORBIDDEN! Bypasses PR workflow!
+```
+
+**Example 3: User says "merge feature1 to main" (bypassing dev)**
+```bash
+# ✅ CORRECT - Merge feature1 → main via PR (rare, but valid for hotfixes)
+git checkout feature1
+git add .
+git commit -m "hotfix: critical security patch"
+git push origin feature1
+gh pr create --title "hotfix: critical security patch" --body "Description" --head feature1 --base main
+gh pr checks <PR#> --watch
+gh pr merge <PR#> --merge --delete-branch=false
+git checkout main && git pull origin main
+git branch -D feature1 && git push origin --delete feature1
+git checkout -b feature1 && git push origin feature1
+```
+
+---
+
 ## DO NOT
 
 1. ❌ Commit files containing secrets (`.env`, `credentials.json`, etc.)
@@ -461,7 +608,8 @@ class DatabaseConfig(BaseModel):
 6. ❌ Ignore linter errors without good reason
 7. ❌ Expose passwords in `__repr__`, `__str__`, or logs
 8. ❌ **Perform Git operations (commit, push, tag, merge) without explicit user request**
-9. ❌ **Merge to `main` or `master` without a Pull Request unless explicitly instructed**
+9. ❌ **Push directly to target branches - ALWAYS use the PR workflow documented above**
+10. ❌ **Bypass CI checks or merge PRs before all checks pass**
 
 ---
 
@@ -485,6 +633,6 @@ class DatabaseConfig(BaseModel):
 
 ---
 
-**Last Updated:** 2026-01-04  
+**Last Updated:** 2026-01-05  
 **Dagster Module:** `src.definitions`  
 **Python Version:** 3.14+
