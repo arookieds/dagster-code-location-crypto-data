@@ -345,23 +345,89 @@ kubectl logs -n dagster deployment/dagster-daemon
 
 **Symptom**: Pods can't reach PostgreSQL or MinIO
 
+**Common Error Messages**:
+```
+botocore.exceptions.EndpointConnectionError: Could not connect to the endpoint URL
+urllib3.exceptions.NameResolutionError: Failed to resolve 'minio.homelab.lan'
+socket.gaierror: [Errno -2] Name or service not known
+```
+
 **Diagnosis**:
 
 ```bash
-# Test from pod
-kubectl exec -n dagster deployment/dagster-crypto-location -- \
-  ping postgresql.database.svc.cluster.local
+# Get a running pod
+POD=$(kubectl get pods -n dagster -l app=crypto-data -o jsonpath='{.items[0].metadata.name}')
 
-# Test DNS resolution
-kubectl exec -n dagster deployment/dagster-crypto-location -- \
-  nslookup postgresql.database.svc.cluster.local
+# Test DNS resolution using Python (most pods don't have nslookup/ping)
+kubectl exec -n dagster $POD -- python -c "
+import socket
+try:
+    ip = socket.gethostbyname('minio.homelab.lan')
+    print(f'DNS OK: Resolved to {ip}')
+except socket.gaierror as e:
+    print(f'DNS FAILED: {e}')
+"
+
+# Test port connectivity
+kubectl exec -n dagster $POD -- python -c "
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(5)
+result = sock.connect_ex(('192.168.0.100', 9000))  # Replace with actual IP
+print('Port reachable' if result == 0 else f'Port unreachable: {result}')
+sock.close()
+"
+
+# Check pod's DNS configuration
+kubectl exec -n dagster $POD -- cat /etc/resolv.conf
 ```
 
 **Solutions**:
 
-1. **Check service names** in ConfigMap
-2. **Verify network policies** allow traffic
-3. **Check firewall rules**
+1. **DNS resolution failure for custom domains** (`.lan`, `.local`, `.home`):
+   
+   This is the most common issue in homelab environments. Pods cannot resolve custom domain names because CoreDNS doesn't know about your external DNS server.
+   
+   **Fix**: Configure CoreDNS to forward custom domain queries to your DNS server (Pi-hole, router, etc.)
+   
+   See detailed instructions: [DNS Configuration for External Services](deployment.md#dns-configuration-for-external-services)
+   
+   Quick fix:
+   ```bash
+   # Edit CoreDNS ConfigMap
+   kubectl edit configmap coredns -n kube-system
+   
+   # Add this block at the top:
+   # lan:53 {
+   #     errors
+   #     cache 30
+   #     forward . 192.168.0.53  # Your DNS server IP
+   # }
+   
+   # Restart CoreDNS
+   kubectl rollout restart deployment coredns -n kube-system
+   ```
+
+2. **Check service names** in ConfigMap:
+   ```bash
+   kubectl get configmap dagster-crypto-config -n dagster -o yaml
+   ```
+
+3. **Verify network policies** allow traffic:
+   ```bash
+   kubectl get networkpolicies -n dagster
+   ```
+
+4. **Check firewall rules** on external services:
+   - Ensure MinIO/PostgreSQL allow connections from K8s pod network
+   - Check if DNS server (Pi-hole) allows queries from K8s pods
+
+5. **Use IP addresses as temporary workaround**:
+   ```yaml
+   # manifests/configmap.yaml
+   data:
+     S3_URL: "http://192.168.0.100:9000"  # Use IP instead of hostname
+   ```
 
 ## Pipeline Execution Issues
 

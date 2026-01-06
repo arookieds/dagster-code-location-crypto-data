@@ -108,6 +108,7 @@ kubectl apply -k manifests/
 manifests/
 ├── kustomization.yaml              # Helm chart override configuration
 ├── configmap.yaml                  # Non-sensitive configuration
+├── coredns-configmap.yaml          # CoreDNS config for external DNS (optional)
 ├── create_sealed_secrets.nu        # Script to generate sealed secrets
 ├── .env.example                    # Example environment variables
 ├── README.md                       # This file
@@ -120,6 +121,7 @@ manifests/
 - ❌ No `service.yaml` - Helm chart creates it
 - ❌ No `secrets.yaml` - Replaced by sealed secrets
 - ✅ Single `kustomization.yaml` with Helm overrides
+- ✅ Optional `coredns-configmap.yaml` for external DNS resolution
 
 ## 🔧 Configuration
 
@@ -147,6 +149,105 @@ Mapped to `Settings` class in `src/dagster_crypto_data/defs/utils/settings.py`:
 | `S3_PASSWORD` | `s3_password` | MinIO secret key (SecretStr) |
 
 ## 🔍 Troubleshooting
+
+### DNS Resolution Issues (Cannot Connect to MinIO/PostgreSQL)
+
+**Symptom**: Errors like:
+```
+botocore.exceptions.EndpointConnectionError: Could not connect to the endpoint URL: "http://minio.homelab.lan:9000/..."
+urllib3.exceptions.NameResolutionError: Failed to resolve 'minio.homelab.lan'
+socket.gaierror: [Errno -2] Name or service not known
+```
+
+**Cause**: Pods cannot resolve custom domain names (`.lan`, `.local`, `.home`) because CoreDNS doesn't know about your external DNS server.
+
+**Solution**: Configure CoreDNS to forward custom domain queries to your DNS server (Pi-hole, router, etc.).
+
+#### Quick Fix
+
+1. **Edit CoreDNS configuration**:
+   ```bash
+   kubectl edit configmap coredns -n kube-system
+   ```
+
+2. **Add forwarding block** at the top (before `.:53`):
+   ```yaml
+   # Forward .lan domains to Pi-hole
+   lan:53 {
+       errors
+       cache 30
+       forward . 192.168.0.53  # Replace with your DNS server IP
+       log
+   }
+   ```
+
+3. **Restart CoreDNS**:
+   ```bash
+   kubectl rollout restart deployment coredns -n kube-system
+   kubectl rollout status deployment coredns -n kube-system
+   ```
+
+4. **Test DNS resolution**:
+   ```bash
+   POD=$(kubectl get pods -n dagster -l app=crypto-data -o jsonpath='{.items[0].metadata.name}')
+   kubectl exec -n dagster $POD -- python -c "
+   import socket
+   ip = socket.gethostbyname('minio.homelab.lan')
+   print(f'SUCCESS: Resolved to {ip}')
+   "
+   ```
+
+#### Using the Provided ConfigMap
+
+This repository includes a pre-configured CoreDNS ConfigMap at `manifests/coredns-configmap.yaml`.
+
+**Before applying:**
+
+1. **Get your DNS server IP** (Pi-hole, router, etc.):
+   ```bash
+   # From your local machine
+   nslookup pi.hole
+   # Or check your Pi-hole admin URL (e.g., http://192.168.0.53/admin)
+   ```
+
+2. **Edit the ConfigMap** and update line 12 with your DNS server IP:
+   ```bash
+   # Edit the file
+   vim manifests/coredns-configmap.yaml
+   
+   # Change this line:
+   forward . 192.168.0.53  # Replace with YOUR DNS server IP
+   ```
+
+3. **If using a different TLD** (e.g., `.local` instead of `.lan`), change line 8:
+   ```yaml
+   local:53 {  # Change 'lan' to your TLD
+   ```
+
+4. **Apply the configuration**:
+   ```bash
+   kubectl apply -f manifests/coredns-configmap.yaml
+   ```
+
+5. **Restart CoreDNS**:
+   ```bash
+   kubectl rollout restart deployment coredns -n kube-system
+   kubectl rollout status deployment coredns -n kube-system
+   ```
+
+6. **Test DNS resolution**:
+   ```bash
+   POD=$(kubectl get pods -n dagster -l app=crypto-data -o jsonpath='{.items[0].metadata.name}')
+   kubectl exec -n dagster $POD -- python -c "
+   import socket
+   ip = socket.gethostbyname('minio.homelab.lan')
+   print(f'SUCCESS: Resolved to {ip}')
+   "
+   ```
+
+For detailed explanation and troubleshooting, see:
+- [Deployment Guide - DNS Configuration](../docs/deployment.md#dns-configuration-for-external-services)
+- [Troubleshooting - Network Connectivity](../docs/troubleshooting.md#network-connectivity-issues)
 
 ### Pod Not Starting
 
