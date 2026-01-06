@@ -7,41 +7,40 @@ namespace: dagster
 
 resources:
   - configmap.yaml
-  # - sealed-secrets/dagster-crypto-secrets-sealed.yaml  # Uncomment after generating
+  - sealed-secrets/dagster-crypto-secrets-sealed.yaml
 
 helmCharts:
   - name: dagster-user-deployments
     repo: https://dagster-io.github.io/helm
-    version: 1.12.6
+    version: 1.12.8
     releaseName: crypto-data
     namespace: dagster
     valuesInline:
+      global:
+        postgresqlSecretName: "dagster-crypto-secrets"
       deployments:
         - name: "crypto-data"
           image:
             repository: "ghcr.io/arookieds/dagster-code-location-crypto-data"
             tag: "latest"
             pullPolicy: "Always"
-          
+
           dagsterApiGrpcArgs:
             - "--module-name"
             - "dagster_crypto_data.definitions"
-          
+
           port: 3030
-          
+
           # Environment variables from ConfigMap
           envConfigMaps:
             - name: dagster-crypto-config
-          
+
           # Environment variables from Secrets
           envSecrets:
             - name: dagster-crypto-secrets
-          
+
           # Additional environment variables
-          env:
-            - name: DAGSTER_CURRENT_IMAGE
-              value: "ghcr.io/arookieds/dagster-code-location-crypto-data:latest"
-          
+          env: []
           # Resource limits
           resources:
             limits:
@@ -50,7 +49,7 @@ helmCharts:
             requests:
               cpu: 100m
               memory: 256Mi
-          
+
           # Liveness probe
           livenessProbe:
             exec:
@@ -62,16 +61,15 @@ helmCharts:
             periodSeconds: 30
             timeoutSeconds: 10
             failureThreshold: 3
-          
+
           # Readiness probe
           readinessProbe:
-            tcpSocket:
-              port: 3030
+            enabled: False
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
-          
+
           # Security context
           securityContext:
             runAsNonRoot: true
@@ -81,31 +79,45 @@ helmCharts:
             capabilities:
               drop:
                 - ALL
-          
+
           # Pod security context
           podSecurityContext:
             fsGroup: 1000
-          
+
           # Service configuration
           service:
             type: ClusterIP
             port: 3030
-          
+
           # Annotations
           annotations:
             description: "Dagster code location for crypto data pipelines"
             repository: "https://github.com/arookieds/dagster-code-location-crypto-data"
-          
-          # Labels
-          labels:
-            app: dagster-crypto-data
-            component: code-location
-            managed-by: kustomize
 
-# Common labels applied to all resources
-commonLabels:
-  project: dagster-crypto-data
+metadata:
+  labels:
+    project: dagster-crypto-data
 
-# Common annotations
-commonAnnotations:
-  managed-by: "kustomize"
+  annotations:
+    managed-by: "kustomize"
+
+patches:
+  - target:
+      kind: Deployment
+      labelSelector: "app.kubernetes.io/instance=crypto-data,component=user-deployments"
+    patch: |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: placeholder-name-for-validation
+      spec:
+        template:
+          spec:
+            containers:
+              - name: dagster-user-deployments
+                env:
+                  - name: DAGSTER_PG_PASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: dagster-crypto-secrets
+                        key: DB_PASSWORD
