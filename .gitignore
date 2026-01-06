@@ -229,3 +229,6 @@ manifests/sealed-secrets/
 
 # KuzuDB databases
 *.kuzu/
+
+# Helm Charts
+**/charts/
