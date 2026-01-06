@@ -421,6 +421,223 @@ images:
 kubectl apply -k apps/dagster/overlays/prod
 ```
 
+## DNS Configuration for External Services
+
+### Problem: Pods Cannot Resolve Custom Domains
+
+When deploying to Kubernetes, pods may fail to resolve custom domain names (e.g., `minio.homelab.lan`, `postgres.homelab.lan`) that exist outside the cluster. This happens because:
+
+1. **CoreDNS only knows about cluster domains** (`.svc.cluster.local`)
+2. **Custom TLDs** (`.lan`, `.local`, `.home`) are not in the default search path
+3. **External DNS servers** (Pi-hole, AdGuard, router DNS) are not queried
+
+**Symptoms**:
+```
+botocore.exceptions.EndpointConnectionError: Could not connect to the endpoint URL: "http://minio.homelab.lan:9000/..."
+urllib3.exceptions.NameResolutionError: Failed to resolve 'minio.homelab.lan'
+socket.gaierror: [Errno -2] Name or service not known
+```
+
+### Solution: Configure CoreDNS to Forward Custom Domains
+
+You need to configure CoreDNS to forward queries for your custom domain (e.g., `.lan`) to your external DNS server (Pi-hole, router, etc.).
+
+#### Step 1: Identify Your External DNS Server
+
+Find the IP address of your DNS server that can resolve custom domains:
+
+```bash
+# From your local machine (not in K8s)
+nslookup minio.homelab.lan
+# Note the DNS server IP (e.g., 192.168.0.53)
+```
+
+#### Step 2: Test Connectivity from Pods
+
+Verify that pods can reach your DNS server:
+
+```bash
+# Get a running pod
+POD=$(kubectl get pods -n dagster -l app=crypto-data -o jsonpath='{.items[0].metadata.name}')
+
+# Test connectivity to DNS server (replace with your DNS IP)
+kubectl exec -n dagster $POD -- python -c "
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(5)
+result = sock.connect_ex(('192.168.0.53', 53))
+print('DNS server reachable' if result == 0 else f'Cannot reach DNS server: {result}')
+sock.close()
+"
+```
+
+If this fails, you may need to:
+- Configure your DNS server to listen on all interfaces
+- Adjust firewall rules to allow DNS queries from K8s pod network
+- Check Kubernetes NetworkPolicies
+
+#### Step 3: Update CoreDNS Configuration
+
+Edit the CoreDNS ConfigMap to add forwarding for your custom domain:
+
+```bash
+# Edit CoreDNS config
+kubectl edit configmap coredns -n kube-system
+```
+
+Add a new block **at the top** (before the default `.:53` block) for your custom domain:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns
+  namespace: kube-system
+data:
+  Corefile: |
+    # Forward .lan domains to external DNS (Pi-hole, router, etc.)
+    lan:53 {
+        errors
+        cache 30
+        forward . 192.168.0.53  # Replace with your DNS server IP
+        log
+    }
+    
+    # Default cluster DNS configuration (keep existing config)
+    .:53 {
+        errors
+        health {
+            lameduck 5s
+        }
+        ready
+        kubernetes cluster.local in-addr.arpa ip6.arpa {
+            pods insecure
+            fallthrough in-addr.arpa ip6.arpa
+            ttl 30
+        }
+        prometheus :9153
+        forward . /etc/resolv.conf {
+           max_concurrent 1000
+        }
+        cache 30
+        loop
+        reload
+        loadbalance
+    }
+```
+
+**Key points**:
+- Replace `192.168.0.53` with your actual DNS server IP
+- Replace `lan` with your custom TLD if different (e.g., `local`, `home`)
+- The custom domain block must come **before** the default `.:53` block
+- The `log` directive helps with debugging (optional)
+
+#### Step 4: Restart CoreDNS
+
+```bash
+# Restart CoreDNS to apply changes
+kubectl rollout restart deployment coredns -n kube-system
+
+# Wait for rollout to complete
+kubectl rollout status deployment coredns -n kube-system
+
+# Verify CoreDNS pods are running
+kubectl get pods -n kube-system -l k8s-app=kube-dns
+```
+
+#### Step 5: Test DNS Resolution
+
+```bash
+# Get a fresh pod name
+POD=$(kubectl get pods -n dagster -l app=crypto-data -o jsonpath='{.items[0].metadata.name}')
+
+# Test DNS resolution
+kubectl exec -n dagster $POD -- python -c "
+import socket
+try:
+    ip = socket.gethostbyname('minio.homelab.lan')
+    print(f'SUCCESS: minio.homelab.lan resolved to {ip}')
+except socket.gaierror as e:
+    print(f'FAILED: DNS resolution failed - {e}')
+"
+
+# Test full connectivity (DNS + network)
+kubectl exec -n dagster $POD -- python -c "
+import socket
+ip = socket.gethostbyname('minio.homelab.lan')
+print(f'Resolved to: {ip}')
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(5)
+result = sock.connect_ex((ip, 9000))
+print('SUCCESS: Full connectivity' if result == 0 else f'Port unreachable: {result}')
+sock.close()
+"
+```
+
+#### Step 6: Restart Application Pods (If Needed)
+
+If DNS still doesn't work, restart your application pods to clear any cached DNS failures:
+
+```bash
+# Restart the deployment
+kubectl rollout restart deployment -n dagster -l app=crypto-data
+```
+
+### When to Use This Configuration
+
+Configure CoreDNS forwarding when:
+
+- ✅ **External services** (MinIO, PostgreSQL, Redis) run outside Kubernetes on custom domains
+- ✅ **Homelab environments** with custom DNS (Pi-hole, AdGuard, router DNS)
+- ✅ **Custom TLDs** (`.lan`, `.local`, `.home`, `.internal`) that aren't publicly resolvable
+- ✅ **Hybrid deployments** where some services are in K8s and others are external
+
+**Do NOT use this if**:
+
+- ❌ All services run inside Kubernetes (use K8s Services instead)
+- ❌ External services use public DNS names (already resolved by default)
+- ❌ You can use IP addresses directly (simpler but less maintainable)
+
+### Alternative: Use IP Addresses
+
+If you don't want to modify CoreDNS, you can use IP addresses directly in your ConfigMap:
+
+```yaml
+# manifests/configmap.yaml
+data:
+  S3_URL: "http://192.168.0.100:9000"  # Direct IP instead of minio.homelab.lan
+  DB_HOST: "192.168.0.101"             # Direct IP instead of postgres.homelab.lan
+```
+
+**Pros**: No CoreDNS changes needed  
+**Cons**: Hardcoded IPs, breaks if services move, less readable
+
+### Troubleshooting DNS Issues
+
+**Check CoreDNS logs**:
+```bash
+kubectl logs -n kube-system -l k8s-app=kube-dns --tail=50 -f
+```
+
+**Verify ConfigMap was applied**:
+```bash
+kubectl get configmap coredns -n kube-system -o yaml | grep -A 5 "lan:53"
+```
+
+**Check pod's DNS configuration**:
+```bash
+kubectl exec -n dagster $POD -- cat /etc/resolv.conf
+```
+
+**Test DNS from pod using dig** (if available):
+```bash
+kubectl exec -n dagster $POD -- dig minio.homelab.lan
+```
+
+For more DNS troubleshooting, see [Troubleshooting - Network Connectivity Issues](#network-connectivity-issues).
+
+---
+
 ## Troubleshooting
 
 ### Code Location Not Loading

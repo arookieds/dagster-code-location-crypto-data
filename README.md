@@ -18,6 +18,8 @@ uv run dagster dev
 
 Visit http://localhost:3000 to access the Dagster UI.
 
+> **Note**: For Kubernetes deployments that need to access external services (MinIO, databases) on custom domains like `.lan`, you may need to configure CoreDNS. See [DNS Configuration](docs/deployment.md#dns-configuration-for-external-services) for details.
+
 ## 📚 Documentation
 
 **Comprehensive documentation is available in the `docs/` directory.**
