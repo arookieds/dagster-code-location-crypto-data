@@ -241,8 +241,8 @@ def verify_configs(session: Session) -> None:
     logger.info(f"Enabled configurations: {enabled}")
 
     # List all exchanges
-    statement = select(PipelineConfig).order_by(PipelineConfig.priority.desc())  # type: ignore[attr-defined]
-    all_configs = session.exec(statement).all()
+    all_configs_list = session.exec(select(PipelineConfig)).all()
+    all_configs = sorted(all_configs_list, key=lambda x: x.priority, reverse=True)
 
     logger.info("Configured exchanges:")
     for config in all_configs:
@@ -278,7 +278,7 @@ def main() -> int:
 
         # Test connection
         with engine.connect() as conn:
-            result = conn.execute(select(1))  # type: ignore[arg-type]
+            conn.execute(text("SELECT 1"))
             logger.info("✓ Connected to PostgreSQL successfully")
 
         # Create schema
