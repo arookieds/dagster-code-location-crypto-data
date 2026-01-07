@@ -64,8 +64,10 @@ class TestS3IOManager:
         output_context: OutputContext,
     ) -> None:
         """Test S3 key generation."""
-        s3_key = s3_io_manager._get_s3_key(output_context)
-        assert s3_key == "extract_binance_ohlcv.json"
+        timestamp = 1704067200000  # 2024-01-01 00:00:00 UTC in milliseconds
+        s3_key = s3_io_manager._get_s3_key(output_context, timestamp)
+        # asset_key is "extract_binance_ohlcv" -> "extract/binance/ohlcv_1704067200000.json"
+        assert s3_key == "extract/binance/ohlcv_1704067200000.json"
 
     def test_get_s3_key_with_nested_asset(
         self,
@@ -75,18 +77,29 @@ class TestS3IOManager:
         context = build_output_context(
             asset_key=AssetKey(["extract", "binance", "ohlcv"])
         )
-        s3_key = s3_io_manager._get_s3_key(context)
-        assert s3_key == "extract/binance/ohlcv.json"
+        timestamp = 1704067200000  # 2024-01-01 00:00:00 UTC in milliseconds
+        s3_key = s3_io_manager._get_s3_key(context, timestamp)
+        # Nested asset key ["extract", "binance", "ohlcv"] -> "extract/binance/ohlcv_1704067200000.json"
+        assert s3_key == "extract/binance/ohlcv_1704067200000.json"
 
     @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.S3IOManager._get_run_info")
     def test_handle_output_uploads_to_s3(
         self,
+        mock_get_run_info: MagicMock,
         mock_boto3_client: MagicMock,
         s3_io_manager: S3IOManager,
         output_context: OutputContext,
         sample_data: dict[str, Any],
     ) -> None:
         """Test that handle_output uploads to S3."""
+        # Mock run info
+        mock_get_run_info.return_value = {
+            "run_id": "test-run-123",
+            "timestamp": "1704067200000",
+            "dt": "24-01-01 00:00:00.000000",
+        }
+
         mock_s3_client = MagicMock()
         mock_boto3_client.return_value = mock_s3_client
 
@@ -97,8 +110,10 @@ class TestS3IOManager:
         call_kwargs = mock_s3_client.put_object.call_args[1]
 
         assert call_kwargs["Bucket"] == "test-bucket"
-        assert call_kwargs["Key"] == "extract_binance_ohlcv.json"
+        assert call_kwargs["Key"] == "extract/binance/ohlcv_1704067200000.json"
         assert call_kwargs["ContentType"] == "application/json"
+        assert call_kwargs["Metadata"]["run_id"] == "test-run-123"
+        assert call_kwargs["Metadata"]["loaded"] == "false"
 
         # Verify JSON content
         uploaded_data = json.loads(call_kwargs["Body"].decode("utf-8"))
@@ -116,14 +131,23 @@ class TestS3IOManager:
             s3_io_manager.handle_output(output_context, "not a dict")  # type: ignore
 
     @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.S3IOManager._get_run_info")
     def test_handle_output_s3_error_raises(
         self,
+        mock_get_run_info: MagicMock,
         mock_boto3_client: MagicMock,
         s3_io_manager: S3IOManager,
         output_context: OutputContext,
         sample_data: dict[str, Any],
     ) -> None:
         """Test that S3 errors are raised."""
+        # Mock run info
+        mock_get_run_info.return_value = {
+            "run_id": "test-run-123",
+            "timestamp": "1704067200000",
+            "dt": "24-01-01 00:00:00.000000",
+        }
+
         mock_s3_client = MagicMock()
         mock_s3_client.put_object.side_effect = ClientError(
             {"Error": {"Code": "AccessDenied", "Message": "Access Denied"}},
@@ -135,19 +159,30 @@ class TestS3IOManager:
             s3_io_manager.handle_output(output_context, sample_data)
 
     @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.S3IOManager._get_run_info")
     def test_load_input_downloads_from_s3(
         self,
+        mock_get_run_info: MagicMock,
         mock_boto3_client: MagicMock,
         s3_io_manager: S3IOManager,
         input_context: InputContext,
         sample_data: dict[str, Any],
     ) -> None:
         """Test that load_input downloads from S3."""
+        # Mock run info
+        mock_get_run_info.return_value = {
+            "run_id": "test-run-123",
+            "timestamp": "1704067200000",
+            "dt": "24-01-01 00:00:00.000000",
+        }
+
         mock_s3_client = MagicMock()
         mock_response = {
             "Body": MagicMock(
                 read=MagicMock(return_value=json.dumps(sample_data).encode("utf-8"))
-            )
+            ),
+            "ContentType": "application/json",
+            "Metadata": {"loaded": "false"},
         }
         mock_s3_client.get_object.return_value = mock_response
         mock_boto3_client.return_value = mock_s3_client
@@ -157,19 +192,31 @@ class TestS3IOManager:
         # Verify get_object was called
         mock_s3_client.get_object.assert_called_once_with(
             Bucket="test-bucket",
-            Key="extract_binance_ohlcv.json",
+            Key="extract/binance/ohlcv_1704067200000.json",
         )
+
+        # Verify copy_object was called to update metadata
+        mock_s3_client.copy_object.assert_called_once()
 
         assert loaded_data == sample_data
 
     @patch("dagster_crypto_data.defs.io_managers.s3.boto3.client")
+    @patch("dagster_crypto_data.defs.io_managers.s3.S3IOManager._get_run_info")
     def test_load_input_object_not_found_raises_error(
         self,
+        mock_get_run_info: MagicMock,
         mock_boto3_client: MagicMock,
         s3_io_manager: S3IOManager,
         input_context: InputContext,
     ) -> None:
         """Test that load_input raises FileNotFoundError if object doesn't exist."""
+        # Mock run info
+        mock_get_run_info.return_value = {
+            "run_id": "test-run-123",
+            "timestamp": "1704067200000",
+            "dt": "24-01-01 00:00:00.000000",
+        }
+
         mock_s3_client = MagicMock()
         mock_s3_client.get_object.side_effect = ClientError(
             {"Error": {"Code": "NoSuchKey", "Message": "Not Found"}},

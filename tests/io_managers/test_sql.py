@@ -111,26 +111,28 @@ class TestSQLIOManagerSQLite:
         with pytest.raises(TypeError, match="SQLIOManager expects a DataFrame"):
             sqlite_io_manager.handle_output(output_context, {"not": "a dataframe"})  # type: ignore
 
-    def test_handle_output_replaces_existing_table(
+    def test_handle_output_appends_to_existing_table(
         self,
         sqlite_io_manager: SQLIOManager,
         output_context: OutputContext,
         sample_dataframe: pl.DataFrame,
     ) -> None:
-        """Test that handle_output replaces existing tables."""
-        # Write first version
+        """Test that handle_output appends to existing tables instead of replacing."""
+        # Write first batch
         sqlite_io_manager.handle_output(output_context, sample_dataframe)
 
-        # Write second version with different data
-        updated_df = sample_dataframe.with_columns(pl.lit(2).alias("version"))
-        sqlite_io_manager.handle_output(output_context, updated_df)
+        # Write second batch with same schema
+        second_batch = sample_dataframe.with_columns(
+            (pl.col("timestamp") + 1000).alias("timestamp")
+        )
+        sqlite_io_manager.handle_output(output_context, second_batch)
 
-        # Load and verify it's the updated version
+        # Load and verify both batches are present
         loaded_df = sqlite_io_manager.load_input(
             build_input_context(asset_key=output_context.asset_key)
         )
-        assert "version" in loaded_df.columns
-        assert loaded_df["version"][0] == 2
+        # Should have rows from both batches (doubled)
+        assert len(loaded_df) == len(sample_dataframe) * 2
 
     def test_load_input_reads_table(
         self,

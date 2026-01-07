@@ -205,11 +205,22 @@ class SQLIOManager(ConfigurableIOManager):
         else:  # postgresql, mysql, mariadb, oracle, mssql, etc.
             connection_uri = engine.url.render_as_string(hide_password=False)
 
+        # Check if table exists
+        from sqlalchemy import inspect
+
+        inspector = inspect(engine)
+        table_exists = inspector.has_table(
+            table_name, schema=self.db_schema if self.db_type == "postgresql" else None
+        )
+
         # Use Polars write_database with ADBC engine for Arrow-based writes
+        # If table exists, append; otherwise create it
         native_df.write_database(
             table_name=full_table_name,  # Use full table name with schema
             connection=connection_uri,
-            if_table_exists="replace",
+            if_table_exists="append"
+            if table_exists
+            else "replace",  # Append if exists, create if not
             engine="adbc",  # Use ADBC/Arrow for efficient writes
         )
 

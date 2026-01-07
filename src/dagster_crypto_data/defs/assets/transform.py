@@ -208,10 +208,13 @@ def transform_asset_factory(
 
             # Select and rename relevant columns
             # This handles cases where some fields might be missing
+            # CCXT ticker fields:
+            # - timestamp: Unix timestamp in milliseconds when ticker was updated on exchange
+            # - datetime: ISO 8601 string (e.g., "2021-01-01T00:00:00.000Z") - same as timestamp
             columns_to_keep = {
                 "symbol": "symbol",
-                "timestamp": "timestamp",
-                "datetime": "datetime",
+                "timestamp": "ticker_timestamp_ms",  # Rename for clarity - this is ticker update time, not extraction time
+                "datetime": "ticker_datetime",  # Human-readable ticker update time
                 "last": "last",
                 "bid": "bid",
                 "ask": "ask",
