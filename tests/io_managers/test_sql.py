@@ -33,6 +33,7 @@ def sqlite_io_manager(
     return SQLIOManager(
         db_type="sqlite",
         db_name="test",  # Use relative path
+        auto_create_tables=True,  # Allow Polars to create tables for testing
     )
 
 
@@ -169,8 +170,9 @@ class TestSQLIOManagerSQLite:
         self,
         sqlite_io_manager: SQLIOManager,
         output_context: OutputContext,
+        capsys: pytest.CaptureFixture[str],
     ) -> None:
-        """Test handle_output with empty DataFrame."""
+        """Test handle_output with empty DataFrame skips write."""
         empty_df = pl.DataFrame(
             {
                 "timestamp": pl.Series([], dtype=pl.Int64),
@@ -178,14 +180,18 @@ class TestSQLIOManagerSQLite:
             }
         )
 
+        # Handle output with empty DataFrame - should skip write
         sqlite_io_manager.handle_output(output_context, empty_df)
 
-        # Load and verify
-        loaded_df = sqlite_io_manager.load_input(
-            build_input_context(asset_key=output_context.asset_key)
-        )
-        assert len(loaded_df) == 0
-        assert loaded_df.columns == empty_df.columns
+        # Verify warning was logged to stderr about skipping empty DataFrame
+        captured = capsys.readouterr()
+        assert "Empty DataFrame" in captured.err
+
+        # Verify that trying to load raises an error (table was never created)
+        with pytest.raises(ValueError, match="Failed to load table"):
+            sqlite_io_manager.load_input(
+                build_input_context(asset_key=output_context.asset_key)
+            )
 
 
 class TestSQLIOManagerPostgreSQL:
