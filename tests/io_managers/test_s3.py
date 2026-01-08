@@ -153,7 +153,7 @@ class FakeS3Client:
             self.stored_objects[Key]["Metadata"] = Metadata.copy()
         return {}
 
-    def get_paginator(self, operation: str) -> "FakePaginator":
+    def get_paginator(self, operation: str) -> FakePaginator:
         """Return a fake paginator."""
         return FakePaginator(self.stored_objects)
 

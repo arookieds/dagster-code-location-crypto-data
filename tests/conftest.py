@@ -5,11 +5,13 @@ from __future__ import annotations
 import gc
 import sys
 import warnings
-from typing import TYPE_CHECKING, Any, Generator
+from typing import TYPE_CHECKING, Any
 
 import pytest
 
 if TYPE_CHECKING:
+    from collections.abc import Generator
+
     from dagster import AssetKey
 
 
@@ -55,7 +57,7 @@ class FakeInputContext:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def suppress_sqlite_cleanup_errors() -> Generator[None, None, None]:
+def suppress_sqlite_cleanup_errors() -> Generator[None]:
     """Suppress SQLite cleanup errors from Dagster ephemeral instances.
 
     This runs once per test session (not per test) to set up error suppression
@@ -72,7 +74,7 @@ def suppress_sqlite_cleanup_errors() -> Generator[None, None, None]:
 
 
 @pytest.fixture(scope="session", autouse=True)
-def cleanup_at_session_end() -> Generator[None, None, None]:
+def cleanup_at_session_end() -> Generator[None]:
     """Run garbage collection once at the end of the test session.
 
     This is more efficient than running gc.collect() after every test.

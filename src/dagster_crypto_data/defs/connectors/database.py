@@ -1,5 +1,4 @@
 from __future__ import annotations
-from sqlalchemy.schema import CreateTable
 
 import logging
 from typing import TYPE_CHECKING

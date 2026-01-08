@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
-from datetime import datetime, timezone
-from typing import Any, cast
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -17,7 +18,9 @@ from dagster import (
 )
 from pydantic import Field
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine import Engine
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine
 
 
 class S3IOManager(ConfigurableIOManager):
@@ -153,7 +156,7 @@ class S3IOManager(ConfigurableIOManager):
                 run_id = getattr(upstream, "run_id", None) or "No run id"
 
         # Try to get run record for timestamp, with fallback to current time
-        dt: datetime = datetime.now(timezone.utc)
+        dt: datetime = datetime.now(UTC)
 
         step_context = getattr(context, "step_context", None)
         if step_context is not None and run_id != "No run id":
@@ -223,9 +226,9 @@ class S3IOManager(ConfigurableIOManager):
                 dt = datetime.fromtimestamp(float(timestamp) / 1000)
                 dt_str = dt.strftime("%y-%m-%d %H:%M:%S.%f")
             else:
-                dt_str = datetime.now(timezone.utc).strftime("%y-%m-%d %H:%M:%S.%f")
+                dt_str = datetime.now(UTC).strftime("%y-%m-%d %H:%M:%S.%f")
         except (ValueError, TypeError):
-            dt_str = datetime.now(timezone.utc).strftime("%y-%m-%d %H:%M:%S.%f")
+            dt_str = datetime.now(UTC).strftime("%y-%m-%d %H:%M:%S.%f")
 
         # Upload to S3
         try:
@@ -507,12 +510,10 @@ class S3IOManager(ConfigurableIOManager):
                     # Safely parse timestamp
                     extraction_ts = None
                     if ts is not None:
-                        try:
+                        with contextlib.suppress(ValueError, TypeError):
                             extraction_ts = int(float(ts))
-                        except (ValueError, TypeError):
-                            pass
 
-                    for symbol, ticker_data in file_data["data"].items():
+                    for _symbol, ticker_data in file_data["data"].items():
                         # Add file metadata to each record for traceability
                         record = {
                             **ticker_data,
