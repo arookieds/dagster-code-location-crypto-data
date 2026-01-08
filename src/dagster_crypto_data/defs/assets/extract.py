@@ -107,7 +107,7 @@ def extract_asset_factory(
 
         try:
             # Capture extraction timestamp
-            extraction_timestamp = datetime.now(UTC).isoformat()
+            extraction_timestamp = datetime.now(UTC).timestamp() * 1000
 
             start_time = time.perf_counter()
             raw: dict[str, Any] = client.fetch_tickers()
@@ -148,7 +148,7 @@ def extract_asset_factory(
             metadata={
                 "record_count": MetadataValue.int(record_count),
                 "extraction_time_seconds": MetadataValue.float(execution_time),
-                "extraction_timestamp": MetadataValue.text(extraction_timestamp),
+                "extraction_timestamp": MetadataValue.text(str(extraction_timestamp)),
                 "sample_records": MetadataValue.json(sample),
                 "exchange_id": MetadataValue.text(config.exchange_id),
             },

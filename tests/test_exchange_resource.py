@@ -1,6 +1,6 @@
-from __future__ import annotations
+"""Tests for CCXTExchangeResource."""
 
-from unittest.mock import MagicMock, patch
+from __future__ import annotations
 
 import ccxt
 import pytest
@@ -62,31 +62,14 @@ class TestCCXTExchangeResource:
         # Should be different instances
         assert client1 is not client2
 
-    @patch("ccxt.binance")
-    def test_get_client_calls_exchange_constructor(
-        self, mock_binance_class: MagicMock
-    ) -> None:
+    def test_get_client_instantiates_correct_exchange_class(self) -> None:
         """Test get_client properly instantiates the exchange class."""
-        mock_instance = MagicMock()
-        mock_binance_class.return_value = mock_instance
-
         resource = CCXTExchangeResource(exchange_id="binance")
+        client = resource.get_client()
 
-        with (
-            patch("ccxt.exchanges", ["binance"]),
-            patch("dagster_crypto_data.defs.resources.exchange.getattr") as mock_getattr,
-        ):
-            mock_getattr.return_value = mock_binance_class
-            client = resource.get_client()
-
-            # Verify getattr was called with correct arguments
-            mock_getattr.assert_called_once_with(ccxt, "binance")
-
-            # Verify the class was instantiated
-            mock_binance_class.assert_called_once_with()
-
-            # Verify the returned client is the mock instance
-            assert client == mock_instance
+        # Verify the client is the correct type and was instantiated
+        assert isinstance(client, ccxt.binance)
+        assert client.id == "binance"
 
     def test_resource_validation_case_sensitive(self) -> None:
         """Test exchange ID validation is case-sensitive."""

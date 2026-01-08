@@ -1,6 +1,8 @@
+"""Tests for extract asset factory."""
+
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from typing import Any
 
 import ccxt
 import pytest
@@ -11,6 +13,37 @@ from dagster_crypto_data.defs.assets.extract import (
     ExtractAssetConfig,
     extract_asset_factory,
 )
+
+
+class FakeExchangeClient:
+    """Fake CCXT exchange client for testing."""
+
+    def __init__(
+        self,
+        ticker_data: dict[str, Any] | None = None,
+        error: Exception | None = None,
+    ) -> None:
+        self.ticker_data = ticker_data or {}
+        self.error = error
+        self.fetch_tickers_calls: list[dict[str, Any]] = []
+
+    def fetch_tickers(self, symbols: list[str] | None = None) -> dict[str, Any]:
+        """Return fake ticker data or raise configured error."""
+        self.fetch_tickers_calls.append({"symbols": symbols})
+        if self.error:
+            raise self.error
+        return self.ticker_data
+
+
+class FakeExchangeResource:
+    """Fake exchange resource for testing."""
+
+    def __init__(self, client: FakeExchangeClient) -> None:
+        self._client = client
+
+    def get_client(self) -> FakeExchangeClient:
+        """Return the fake client."""
+        return self._client
 
 
 class TestExtractAssetConfig:
@@ -168,12 +201,8 @@ class TestExtractAssetFactory:
         assert asset_def is not None
 
     def test_asset_execution_success(self) -> None:
-        """Test successful asset execution with mocked exchange."""
-
-        # Create mock exchange resource
-        mock_exchange_resource = MagicMock()
-        mock_client = MagicMock()
-        mock_ticker_data = {
+        """Test successful asset execution with fake exchange."""
+        fake_ticker_data = {
             "BTC/USDT": {
                 "symbol": "BTC/USDT",
                 "last": 50000.0,
@@ -205,20 +234,18 @@ class TestExtractAssetFactory:
                 "ask": 7.51,
             },
         }
-        mock_client.fetch_tickers.return_value = mock_ticker_data
-        mock_exchange_resource.get_client.return_value = mock_client
 
-        # Create asset
+        fake_client = FakeExchangeClient(ticker_data=fake_ticker_data)
+        fake_exchange_resource = FakeExchangeResource(client=fake_client)
+
         asset_def = extract_asset_factory(
             asset_name="binance_tickers",
             group_name="raw_data",
             exchange_id="binance",
         )
 
-        # Execute asset using materialize
-        result = materialize([asset_def], resources={"exchange": mock_exchange_resource})
+        result = materialize([asset_def], resources={"exchange": fake_exchange_resource})
 
-        # Verify execution was successful
         assert result.success
         materialization = result.asset_materializations_for_node("binance_tickers")[0]
 
@@ -230,24 +257,17 @@ class TestExtractAssetFactory:
 
     def test_asset_execution_with_empty_response(self) -> None:
         """Test asset execution with empty ticker response."""
+        fake_client = FakeExchangeClient(ticker_data={})
+        fake_exchange_resource = FakeExchangeResource(client=fake_client)
 
-        # Create mock exchange resource
-        mock_exchange_resource = MagicMock()
-        mock_client = MagicMock()
-        mock_client.fetch_tickers.return_value = {}
-        mock_exchange_resource.get_client.return_value = mock_client
-
-        # Create asset
         asset_def = extract_asset_factory(
             asset_name="binance_tickers",
             group_name="raw_data",
             exchange_id="binance",
         )
 
-        # Execute asset
-        result = materialize([asset_def], resources={"exchange": mock_exchange_resource})
+        result = materialize([asset_def], resources={"exchange": fake_exchange_resource})
 
-        # Verify execution was successful
         assert result.success
         materialization = result.asset_materializations_for_node("binance_tickers")[0]
 
@@ -257,72 +277,52 @@ class TestExtractAssetFactory:
 
     def test_asset_execution_network_error(self) -> None:
         """Test asset execution handles NetworkError correctly."""
-        # Create mock exchange resource that raises NetworkError
-        mock_exchange_resource = MagicMock()
-        mock_client = MagicMock()
-        mock_client.fetch_tickers.side_effect = ccxt.NetworkError("Connection timeout")
-        mock_exchange_resource.get_client.return_value = mock_client
+        fake_client = FakeExchangeClient(error=ccxt.NetworkError("Connection timeout"))
+        fake_exchange_resource = FakeExchangeResource(client=fake_client)
 
-        # Create asset
         asset_def = extract_asset_factory(
             asset_name="binance_tickers",
             group_name="raw_data",
             exchange_id="binance",
         )
 
-        # Execute asset and expect NetworkError to be raised
         with pytest.raises(ccxt.NetworkError, match="Connection timeout"):
-            materialize([asset_def], resources={"exchange": mock_exchange_resource})
+            materialize([asset_def], resources={"exchange": fake_exchange_resource})
 
     def test_asset_execution_exchange_error(self) -> None:
         """Test asset execution handles ExchangeError correctly."""
-        # Create mock exchange resource that raises ExchangeError
-        mock_exchange_resource = MagicMock()
-        mock_client = MagicMock()
-        mock_client.fetch_tickers.side_effect = ccxt.ExchangeError(
-            "API rate limit exceeded"
+        fake_client = FakeExchangeClient(
+            error=ccxt.ExchangeError("API rate limit exceeded")
         )
-        mock_exchange_resource.get_client.return_value = mock_client
+        fake_exchange_resource = FakeExchangeResource(client=fake_client)
 
-        # Create asset
         asset_def = extract_asset_factory(
             asset_name="binance_tickers",
             group_name="raw_data",
             exchange_id="binance",
         )
 
-        # Execute asset and expect ExchangeError to be raised
         with pytest.raises(ccxt.ExchangeError, match="API rate limit exceeded"):
-            materialize([asset_def], resources={"exchange": mock_exchange_resource})
+            materialize([asset_def], resources={"exchange": fake_exchange_resource})
 
     def test_asset_execution_unexpected_error(self) -> None:
         """Test asset execution handles unexpected errors correctly."""
-        # Create mock exchange resource that raises unexpected error
-        mock_exchange_resource = MagicMock()
-        mock_client = MagicMock()
-        mock_client.fetch_tickers.side_effect = RuntimeError("Unexpected error occurred")
-        mock_exchange_resource.get_client.return_value = mock_client
+        fake_client = FakeExchangeClient(error=RuntimeError("Unexpected error occurred"))
+        fake_exchange_resource = FakeExchangeResource(client=fake_client)
 
-        # Create asset
         asset_def = extract_asset_factory(
             asset_name="binance_tickers",
             group_name="raw_data",
             exchange_id="binance",
         )
 
-        # Execute asset and expect RuntimeError to be raised
         with pytest.raises(RuntimeError, match="Unexpected error occurred"):
-            materialize([asset_def], resources={"exchange": mock_exchange_resource})
+            materialize([asset_def], resources={"exchange": fake_exchange_resource})
 
     def test_asset_execution_large_dataset(self) -> None:
         """Test asset execution with large dataset (100+ tickers)."""
-
-        # Create mock exchange resource with large dataset
-        mock_exchange_resource = MagicMock()
-        mock_client = MagicMock()
-
-        # Generate 150 mock tickers
-        mock_ticker_data = {
+        # Generate 150 fake tickers
+        fake_ticker_data = {
             f"COIN{i}/USDT": {
                 "symbol": f"COIN{i}/USDT",
                 "last": 100.0 + i,
@@ -331,20 +331,18 @@ class TestExtractAssetFactory:
             }
             for i in range(150)
         }
-        mock_client.fetch_tickers.return_value = mock_ticker_data
-        mock_exchange_resource.get_client.return_value = mock_client
 
-        # Create asset
+        fake_client = FakeExchangeClient(ticker_data=fake_ticker_data)
+        fake_exchange_resource = FakeExchangeResource(client=fake_client)
+
         asset_def = extract_asset_factory(
             asset_name="binance_tickers",
             group_name="raw_data",
             exchange_id="binance",
         )
 
-        # Execute asset
-        result = materialize([asset_def], resources={"exchange": mock_exchange_resource})
+        result = materialize([asset_def], resources={"exchange": fake_exchange_resource})
 
-        # Verify execution was successful
         assert result.success
         materialization = result.asset_materializations_for_node("binance_tickers")[0]
 
