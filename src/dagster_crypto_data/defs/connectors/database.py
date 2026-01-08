@@ -4,12 +4,13 @@ import logging
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, PrivateAttr, computed_field, field_validator
-from sqlalchemy import URL, inspect
+from sqlalchemy import URL, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlmodel import SQLModel, create_engine
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
+
 logger = logging.getLogger(__name__)
 
 
@@ -130,14 +131,53 @@ class DatabaseManagement(BaseModel):
 
     def _create_schema_and_tables(self, engine: Engine) -> None:
         """Create database schema and tables from SQLModel metadata.
+
+        For PostgreSQL, creates the required schemas (crypto_data, config)
+        before creating tables. Models are imported here to register them
+        with SQLModel.metadata.
+
+        For SQLite, creates tables without schemas (SQLite doesn't support schemas).
+        Tables with schema definitions are skipped for SQLite.
+
         Args:
             engine: SQLAlchemy engine instance.
         Raises:
             RuntimeError: If schema creation fails.
         """
         try:
-            SQLModel.metadata.create_all(engine)
-            logger.info(f"Successfully created schema for {self.db_type} database")
+            if self.db_type == "postgresql":
+                # For PostgreSQL, create schemas first
+                with engine.connect() as conn:
+                    conn.execute(text("CREATE SCHEMA IF NOT EXISTS crypto_data"))
+                    conn.execute(text("CREATE SCHEMA IF NOT EXISTS config"))
+                    conn.commit()
+                    logger.info("Created schemas: crypto_data, config")
+
+                # Import models to register them with SQLModel.metadata
+                # These models have schema definitions for PostgreSQL
+                from dagster_crypto_data.defs.models.pipeline_configs import (
+                    PipelineConfig,  # noqa: F401
+                )
+                from dagster_crypto_data.defs.models.tickers import Ticker  # noqa: F401
+
+                # Create all tables from SQLModel.metadata (only for PostgreSQL)
+                # This creates tables with their schema definitions
+                SQLModel.metadata.create_all(engine)
+                logger.info(f"Successfully created tables for {self.db_type} database")
+            else:
+                # For SQLite, only create tables that don't have a schema defined
+                # Tables with schemas (like Ticker with schema="crypto_data") are skipped
+                # because SQLite doesn't support schemas
+                tables_to_create = [
+                    table
+                    for table in SQLModel.metadata.tables.values()
+                    if table.schema is None
+                ]
+                for table in tables_to_create:
+                    table.create(engine, checkfirst=True)
+                logger.info(
+                    f"Successfully created {len(tables_to_create)} tables for {self.db_type} database"
+                )
         except SQLAlchemyError as e:
             logger.error(f"Failed to create database schema: {e}")
             raise RuntimeError(f"Schema creation failed: {e}") from e
