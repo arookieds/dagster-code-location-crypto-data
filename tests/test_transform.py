@@ -343,10 +343,13 @@ class TestTransformAssetFactory:
                 "BTC/USDT": {
                     "symbol": "BTC/USDT",
                     "timestamp": 1735675200000,
+                    "datetime": "2025-12-31T19:00:00.000Z",
                     "last": 50000.0,
                     "bid": 49999.0,
                     "ask": 50001.0,
                     "volume": 1234.56,
+                    "baseVolume": 1234.56,
+                    "quoteVolume": 61728000.0,
                 },
             },
         }
@@ -396,11 +399,19 @@ class TestTransformAssetFactory:
             "data": {
                 "BTC/USDT": {
                     "symbol": "BTC/USDT",
+                    "timestamp": 1735675200000,
+                    "datetime": "2025-12-31T19:00:00.000Z",
                     "last": 50000.0,
-                    # Missing: bid, ask, volume, etc.
+                    "bid": 49999.0,
+                    "ask": 50001.0,
+                    "volume": 1234.56,
+                    "baseVolume": 1234.56,
+                    "quoteVolume": 61728000.0,
                 },
                 "ETH/USDT": {
                     "symbol": "ETH/USDT",
+                    "timestamp": 1735675200000,
+                    "datetime": "2025-12-31T19:00:00.000Z",
                     "last": 3000.0,
                     "volume": 5678.90,
                     # Missing: bid, ask, etc.
@@ -441,10 +452,13 @@ class TestTransformAssetFactory:
             f"COIN{i}/USDT": {
                 "symbol": f"COIN{i}/USDT",
                 "timestamp": 1735675200000,
+                "datetime": "2025-12-31T19:00:00.000Z",
                 "last": 100.0 + i,
                 "bid": 99.0 + i,
                 "ask": 101.0 + i,
                 "volume": 1000.0 + i,
+                "baseVolume": 1000.0 + i,
+                "quoteVolume": 100000.0 + i,
             }
             for i in range(150)
         }
@@ -535,7 +549,14 @@ class TestTransformAssetFactory:
             "data": {
                 "BTC/USDT": {
                     "symbol": "BTC/USDT",
+                    "timestamp": 1735675200000,
+                    "datetime": "2025-12-31T19:00:00.000Z",
                     "last": 50000.0,
+                    "bid": 49999.0,
+                    "ask": 50001.0,
+                    "volume": 1234.56,
+                    "baseVolume": 1234.56,
+                    "quoteVolume": 61728000.0,
                 },
             },
         }
