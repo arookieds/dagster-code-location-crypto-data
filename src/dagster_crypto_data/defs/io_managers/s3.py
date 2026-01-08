@@ -5,7 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import boto3
 from botocore.exceptions import ClientError
@@ -269,7 +269,7 @@ class S3IOManager(ConfigurableIOManager):
         if upstream is not None:
             upstream_asset_key = getattr(upstream, "asset_key", None)
             if upstream_asset_key is not None:
-                return upstream_asset_key
+                return cast(AssetKey, upstream_asset_key)
 
         # Fallback to context.asset_key (should be upstream asset in normal cases)
         return context.asset_key
