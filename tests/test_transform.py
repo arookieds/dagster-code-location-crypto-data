@@ -1,13 +1,25 @@
 from __future__ import annotations
 
+from typing import ClassVar
+
 import pytest
 from dagster import materialize
 from pydantic import ValidationError
+from sqlmodel import Field, SQLModel
 
 from dagster_crypto_data.defs.assets.transform import (
     TransformAssetConfig,
     transform_asset_factory,
 )
+
+
+class MockTickerModel(SQLModel, table=True):
+    """Mock model for testing transform asset factory."""
+
+    __tablename__: ClassVar[str] = "mock_tickers"
+
+    id: int | None = Field(default=None, primary_key=True)
+    symbol: str = Field(default="")
 
 
 class TestTransformAssetConfig:
@@ -145,6 +157,7 @@ class TestTransformAssetFactory:
             group_name="transformed_data",
             exchange_id="binance",
             source_asset_key="binance_raw",
+            model=MockTickerModel,
         )
         assert asset_def is not None
         assert hasattr(asset_def, "node_def")
@@ -157,6 +170,7 @@ class TestTransformAssetFactory:
                 group_name="test_group",
                 exchange_id="invalid_exchange",
                 source_asset_key="test_source",
+                model=MockTickerModel,
             )
 
     def test_factory_with_invalid_asset_name_raises_validation_error(self) -> None:
@@ -167,6 +181,7 @@ class TestTransformAssetFactory:
                 group_name="test_group",
                 exchange_id="binance",
                 source_asset_key="test_source",
+                model=MockTickerModel,
             )
 
     def test_factory_with_custom_io_manager_key(self) -> None:
@@ -176,6 +191,7 @@ class TestTransformAssetFactory:
             group_name="transformed_data",
             exchange_id="binance",
             source_asset_key="binance_raw",
+            model=MockTickerModel,
             io_manager_key="custom_io_manager",
         )
         assert asset_def is not None
@@ -237,6 +253,7 @@ class TestTransformAssetFactory:
             group_name="test_group",
             exchange_id="binance",
             source_asset_key="test_extract",
+            model=MockTickerModel,
             io_manager_key="io_manager",
         )
 
@@ -287,6 +304,7 @@ class TestTransformAssetFactory:
             group_name="test_group",
             exchange_id="binance",
             source_asset_key="test_extract",
+            model=MockTickerModel,
             io_manager_key="io_manager",
         )
 
@@ -339,6 +357,7 @@ class TestTransformAssetFactory:
             group_name="test_group",
             exchange_id="binance",
             source_asset_key="test_extract",
+            model=MockTickerModel,
             io_manager_key="io_manager",
         )
 
@@ -395,6 +414,7 @@ class TestTransformAssetFactory:
             group_name="test_group",
             exchange_id="binance",
             source_asset_key="test_extract",
+            model=MockTickerModel,
             io_manager_key="io_manager",
         )
 
@@ -443,6 +463,7 @@ class TestTransformAssetFactory:
             group_name="test_group",
             exchange_id="binance",
             source_asset_key="test_extract",
+            model=MockTickerModel,
             io_manager_key="io_manager",
         )
 
@@ -474,6 +495,7 @@ class TestTransformAssetFactory:
             group_name="transformed_data",
             exchange_id="binance",
             source_asset_key="binance_raw",
+            model=MockTickerModel,
         )
 
         bybit_transform = transform_asset_factory(
@@ -481,6 +503,7 @@ class TestTransformAssetFactory:
             group_name="transformed_data",
             exchange_id="bybit",
             source_asset_key="bybit_raw",
+            model=MockTickerModel,
         )
 
         kraken_transform = transform_asset_factory(
@@ -488,6 +511,7 @@ class TestTransformAssetFactory:
             group_name="transformed_data",
             exchange_id="kraken",
             source_asset_key="kraken_raw",
+            model=MockTickerModel,
         )
 
         # Verify all assets are created
@@ -522,6 +546,7 @@ class TestTransformAssetFactory:
             group_name="test_group",
             exchange_id="binance",
             source_asset_key="test_extract",
+            model=MockTickerModel,
             io_manager_key="io_manager",
         )
 

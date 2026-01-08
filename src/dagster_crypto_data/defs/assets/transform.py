@@ -1,5 +1,5 @@
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import ccxt
 import narwhals as nw
@@ -13,6 +13,9 @@ from dagster import (
     asset,
 )
 from pydantic import BaseModel, Field, field_validator
+
+if TYPE_CHECKING:
+    from sqlmodel import SQLModel
 
 
 class TransformAssetConfig(BaseModel):
@@ -56,6 +59,7 @@ def transform_asset_factory(
     group_name: str,
     exchange_id: str,
     source_asset_key: str,
+    model: type[SQLModel],
     io_manager_key: str = "io_manager",
 ) -> AssetsDefinition:
     """Factory function to build a Dagster asset for transforming crypto ticker data.
@@ -122,6 +126,7 @@ def transform_asset_factory(
                 key=AssetKey(config.source_asset_key),
             ),
         },
+        metadata={"model": model},
     )
     def build_asset(
         context: AssetExecutionContext, raw_data: dict[str, Any]
@@ -194,11 +199,19 @@ def transform_asset_factory(
             )
 
             # Use Polars to efficiently flatten the nested dict structure
-            # Convert dict of dicts to list of dicts with symbol as a field
-            records = [
-                {"symbol": symbol, **ticker_info}
-                for symbol, ticker_info in ticker_data.items()
-            ]
+            # Handle both dict (single file) and list (multiple files) formats
+            if isinstance(ticker_data, dict):
+                # Single file format: {"BTC/USDT": {...}, ...}
+                records = [
+                    {"symbol": symbol, **ticker_info}
+                    for symbol, ticker_info in ticker_data.items()
+                ]
+            elif isinstance(ticker_data, list):
+                # Multiple files format: [{...}, {...}]
+                # Records already contain symbol and metadata
+                records = ticker_data
+            else:
+                raise ValueError(f"Unexpected data format: {type(ticker_data)}")
 
             # Create DataFrame using Narwhals with Polars backend
             # Polars will automatically infer schema and handle nested structures
@@ -223,29 +236,12 @@ def transform_asset_factory(
                 "volume": "volume",
                 "baseVolume": "base_volume",
                 "quoteVolume": "quote_volume",
+                "extraction_timestamp": "extraction_timestamp",
+                "exchange_id": "exchange_id",
             }
 
-            # Select only columns that exist in the DataFrame
-            available_columns = set(df.columns)
-            select_exprs = []
-
-            for source_col, target_col in columns_to_keep.items():
-                if source_col in available_columns:
-                    if source_col != target_col:
-                        select_exprs.append(nw.col(source_col).alias(target_col))
-                    else:
-                        select_exprs.append(nw.col(source_col))
-
-            if select_exprs:
-                df = df.select(select_exprs)
-
-            # Add metadata columns
-            df = df.with_columns(
-                [
-                    nw.lit(config.exchange_id).alias("exchange_id"),
-                    nw.lit(extraction_timestamp).alias("extraction_timestamp"),
-                ]
-            )
+            columns = set(columns_to_keep.keys()) & set(df.columns)
+            df = df.select(columns).rename(columns_to_keep)
 
             transformation_time = time.perf_counter() - start_time
 

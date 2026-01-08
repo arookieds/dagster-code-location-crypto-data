@@ -13,6 +13,7 @@ from dagster_crypto_data.defs.io_managers import (
     S3IOManager,
     SQLIOManager,
 )
+from dagster_crypto_data.defs.models.tickers import Ticker
 from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
 from dagster_crypto_data.defs.utils import get_logger, get_settings
 
@@ -32,6 +33,7 @@ binance_transform = transform_asset_factory(
     group_name="transform",
     exchange_id="binance",
     source_asset_key="binance_raw_tickers",
+    model=Ticker,
     io_manager_key="transform_io_manager",
 )
 
@@ -68,6 +70,14 @@ if settings.is_production:
         secret_key=settings.s3_password.get_secret_value(),
         bucket=settings.s3_bucket,
         use_ssl=not settings.s3_url.startswith("http://"),
+        # Database config for timestamp-based filtering
+        db_host=settings.db_host,
+        db_port=settings.db_port,
+        db_name=settings.db_name,
+        db_username=settings.db_username,
+        db_password=settings.db_password.get_secret_value(),
+        db_schema="crypto_data",
+        target_table_name="raw_tickers",  # Table where transform writes the data
     )
     transform_io_manager = SQLIOManager(
         db_type="postgresql",
@@ -76,6 +86,7 @@ if settings.is_production:
         db_name=settings.db_name,
         username=settings.db_username,
         password=settings.db_password.get_secret_value(),
+        db_schema="public",  # Fallback schema (models define their own schema)
     )
 else:
     extract_io_manager = FilesystemIOManager(base_path="./local_runs")
