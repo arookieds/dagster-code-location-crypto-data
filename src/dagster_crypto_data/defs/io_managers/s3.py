@@ -216,7 +216,17 @@ class S3IOManager(ConfigurableIOManager):
         # Serialize to JSON
         json_data = json.dumps(obj, indent=2, default=str)
         timestamp = obj.get("metadata", {}).get("timestamp")
-        dt = datetime.fromtimestamp(timestamp / 1000)
+
+        # Safely parse timestamp
+        try:
+            if timestamp is not None:
+                dt = datetime.fromtimestamp(float(timestamp) / 1000)
+                dt_str = dt.strftime("%y-%m-%d %H:%M:%S.%f")
+            else:
+                dt_str = datetime.now(timezone.utc).strftime("%y-%m-%d %H:%M:%S.%f")
+        except (ValueError, TypeError):
+            dt_str = datetime.now(timezone.utc).strftime("%y-%m-%d %H:%M:%S.%f")
+
         # Upload to S3
         try:
             s3_client.put_object(
@@ -225,8 +235,8 @@ class S3IOManager(ConfigurableIOManager):
                 Body=json_data.encode("utf-8"),
                 Metadata={
                     "run_id": run_id,
-                    "timestamp": str(timestamp),
-                    "dt": dt.strftime("%y-%m-%d %H:%M:%S.%f"),
+                    "timestamp": str(timestamp) if timestamp else "",
+                    "dt": dt_str,
                     "run_timestamp": run_timestamp,
                     "run_dt": run_dt,
                     "loaded": "false",
@@ -485,12 +495,28 @@ class S3IOManager(ConfigurableIOManager):
                     file_metadata = file_data.get("metadata", {})
                     ts = metadata.get("timestamp")
                     timestamps.append(ts)
-                    metadatas.append({"timestamp": ts, "metadata": metadata})
+                    # Store both S3 metadata and file content metadata
+                    metadatas.append(
+                        {
+                            "timestamp": ts,
+                            "s3_metadata": metadata,
+                            "file_metadata": file_metadata,
+                        }
+                    )
+
+                    # Safely parse timestamp
+                    extraction_ts = None
+                    if ts is not None:
+                        try:
+                            extraction_ts = int(float(ts))
+                        except (ValueError, TypeError):
+                            pass
+
                     for symbol, ticker_data in file_data["data"].items():
                         # Add file metadata to each record for traceability
                         record = {
                             **ticker_data,
-                            "extraction_timestamp": int(float(ts)),
+                            "extraction_timestamp": extraction_ts,
                             "exchange_id": file_metadata.get("exchange_id"),
                         }
                         all_records.append(record)
@@ -523,7 +549,43 @@ class S3IOManager(ConfigurableIOManager):
 
         # Return accumulated records
         # Note: 'data' is now a list of records, not a dict of dicts
+        latest_metadata = {}
+        if metadatas:
+            # Safely find max timestamp
+            try:
+                latest_entry = max(
+                    metadatas, key=lambda x: float(x.get("timestamp") or 0)
+                )
+                # Return the file content metadata from the latest file
+                latest_metadata = latest_entry.get("file_metadata", {})
+            except (ValueError, TypeError):
+                # Fallback if timestamps are invalid
+                latest_metadata = metadatas[-1].get("file_metadata", {})
+
         return {
-            "metadata": max(metadatas, key=lambda x: x.get("timestamp")),
+            "metadata": latest_metadata,
+            "data": all_records,
+        }
+
+        context.log.info(
+            f"Loaded {len(keys_to_load)} files with {len(all_records)} total records"
+        )
+
+        # Return accumulated records
+        # Note: 'data' is now a list of records, not a dict of dicts
+        latest_metadata = {}
+        if metadatas:
+            # Safely find max timestamp
+            try:
+                latest_entry = max(
+                    metadatas, key=lambda x: float(x.get("timestamp") or 0)
+                )
+                latest_metadata = latest_entry.get("metadata", {})
+            except (ValueError, TypeError):
+                # Fallback if timestamps are invalid
+                latest_metadata = metadatas[-1].get("metadata", {})
+
+        return {
+            "metadata": latest_metadata,
             "data": all_records,
         }
