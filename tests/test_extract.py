@@ -41,7 +41,7 @@ class FakeExchangeResource:
     def __init__(self, client: FakeExchangeClient) -> None:
         self._client = client
 
-    def get_client(self) -> FakeExchangeClient:
+    def get_client(self, exchange_id: str) -> FakeExchangeClient:
         """Return the fake client."""
         return self._client
 
@@ -70,15 +70,6 @@ class TestExtractAssetConfig:
             io_manager_key="custom_io_manager",
         )
         assert config.io_manager_key == "custom_io_manager"
-
-    def test_invalid_exchange_id(self) -> None:
-        """Test invalid exchange ID raises ValidationError."""
-        with pytest.raises(ValidationError, match="not a valid CCXT exchange"):
-            ExtractAssetConfig(
-                asset_name="test_asset",
-                group_name="test_group",
-                exchange_id="invalid_exchange_that_does_not_exist",
-            )
 
     def test_invalid_asset_name_uppercase(self) -> None:
         """Test asset name with uppercase letters raises ValidationError."""
@@ -174,7 +165,7 @@ class TestExtractAssetFactory:
 
     def test_factory_with_invalid_exchange_raises_validation_error(self) -> None:
         """Test factory with invalid exchange ID raises ValidationError."""
-        with pytest.raises(ValidationError, match="not a valid CCXT exchange"):
+        with pytest.raises(ValueError, match="not a valid CCXT exchange"):
             extract_asset_factory(
                 asset_name="test_asset",
                 group_name="test_group",

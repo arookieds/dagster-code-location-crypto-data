@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 
 import ccxt
 from dagster import ConfigurableResource
-from pydantic import field_validator
 
 if TYPE_CHECKING:
     from ccxt.base.exchange import Exchange

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from dagster import InputContext, OutputContext, RunRecord
 
@@ -29,7 +29,7 @@ def get_run_info(context: OutputContext | InputContext) -> dict[str, str]:
             run_id = getattr(upstream, "run_id", None) or "No run id"
 
     # Try to get run record for timestamp, with fallback to current time
-    dt: datetime = datetime.now(timezone.utc)
+    dt: datetime = datetime.now(UTC)
 
     step_context = getattr(context, "step_context", None)
     if step_context is not None and run_id != "No run id":

@@ -1,10 +1,10 @@
 import time
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import ccxt
 from dagster import AssetExecutionContext, AssetsDefinition, MetadataValue, Output, asset
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
 
@@ -31,6 +31,12 @@ class ExtractAssetConfig(BaseModel):
         default="io_manager",
         description="Dagster IO manager key",
     )
+
+    @field_validator("exchange_id")
+    @classmethod
+    def validate_exchange_id(cls, v: str) -> str:
+        """Validate exchange_id is supported by CCXT."""
+        return CCXTExchangeResource.validate_exchange_id(v)
 
 
 def extract_asset_factory(
@@ -94,6 +100,7 @@ def extract_asset_factory(
         exchange: CCXTExchangeResource,
     ) -> Output[dict[str, Any]]:
         # Access the resource from context
+        _ = CCXTExchangeResource.validate_exchange_id(config.exchange_id)
         client = exchange.get_client(config.exchange_id)
 
         context.log.info(f"Fetching tickers from {config.exchange_id}")

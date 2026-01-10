@@ -1,7 +1,6 @@
 """S3-compatible IO Manager (MinIO, AWS S3, etc.)."""
 
 from __future__ import annotations
-from ssl import ALERT_DESCRIPTION_HANDSHAKE_FAILURE
 
 import contextlib
 import json
@@ -311,7 +310,7 @@ class S3IOManager(ConfigurableIOManager):
 
             if max_ts:
                 context.log.info(
-                    f"extraction_timestamp in {full_table_name}: {max_ts, }"
+                    f"extraction_timestamp in {full_table_name}: {(max_ts,)}"
                 )
                 return (list(map(float, max_ts)), False)
             else:
@@ -380,7 +379,7 @@ class S3IOManager(ConfigurableIOManager):
                         ):
                             unloaded_keys.append(key)
                             context.log.debug(
-                                f"File {key} timestamp {int(file_extraction_ts)} not in DB {max_db_timestamps, }"
+                                f"File {key} timestamp {int(file_extraction_ts)} not in DB {(max_db_timestamps,)}"
                             )
                     # Strategy 3: Fallback to loaded metadata flag
                     else:
