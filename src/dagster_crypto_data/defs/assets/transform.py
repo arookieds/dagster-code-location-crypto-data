@@ -241,7 +241,19 @@ def transform_asset_factory(
             }
 
             columns = set(columns_to_keep.keys()) & set(df.columns)
-            df = df.select(columns).rename(columns_to_keep)
+            df = (
+                df.select(columns)
+                .rename(columns_to_keep)
+                .with_columns(
+                    ticker_timestamp_ms=nw.col("ticker_timestamp_ms").cast(nw.Int64),
+                )
+            )
+            if len(df) == df["ticker_timestamp_ms"].null_count():
+                context.log.warning("Dropping empty column 'ticker_timestamp_ms'")
+                df = df.drop(["ticker_timestamp_ms"])
+            if len(df) == df["ticker_datetime"].null_count():
+                context.log.warning("Dropping empty column 'ticker_datetime'")
+                df = df.drop(["ticker_datetime"])
 
             transformation_time = time.perf_counter() - start_time
 
@@ -252,7 +264,7 @@ def transform_asset_factory(
             # Get sample of first 5 rows for metadata
             sample_df = df.head(5)
             sample_dict = sample_df.to_dict(as_series=False)
-
+            context.log.debug(df.schema)
             return Output(
                 value=df,
                 metadata={
@@ -264,7 +276,7 @@ def transform_asset_factory(
                     ),
                     "exchange_id": MetadataValue.text(config.exchange_id),
                     "extraction_timestamp": MetadataValue.text(
-                        extraction_timestamp or "unknown"
+                        str(extraction_timestamp) or "unknown"
                     ),
                     "sample_data": MetadataValue.md(f"```json\n{sample_dict}\n```"),
                 },

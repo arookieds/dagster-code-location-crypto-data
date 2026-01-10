@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 import ccxt
 from dagster import ConfigurableResource
-from pydantic import Field, field_validator
+from pydantic import field_validator
 
 if TYPE_CHECKING:
     from ccxt.base.exchange import Exchange
@@ -13,12 +13,6 @@ if TYPE_CHECKING:
 class CCXTExchangeResource(ConfigurableResource):
     """Dagster resource for CCXT exchange clients."""
 
-    exchange_id: str = Field(
-        ...,
-        description="CCXT exchange identifier (e.g., 'binance', 'bybit')",
-    )
-
-    @field_validator("exchange_id")
     @classmethod
     def validate_exchange_id(cls, v: str) -> str:
         """Validate exchange_id is supported by CCXT."""
@@ -26,7 +20,8 @@ class CCXTExchangeResource(ConfigurableResource):
             raise ValueError(f"'{v}' is not a valid CCXT exchange")
         return v
 
-    def get_client(self) -> Exchange:
+    def get_client(self, exchange_id: str) -> Exchange:
         """Get instantiated exchange client."""
         # Authenticated clients can be implemented here later
-        return getattr(ccxt, self.exchange_id)()
+        _: str = CCXTExchangeResource.validate_exchange_id(exchange_id)
+        return getattr(ccxt, exchange_id)()

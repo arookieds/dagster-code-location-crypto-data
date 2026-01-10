@@ -1,6 +1,7 @@
 """S3-compatible IO Manager (MinIO, AWS S3, etc.)."""
 
 from __future__ import annotations
+from ssl import ALERT_DESCRIPTION_HANDSHAKE_FAILURE
 
 import contextlib
 import json
@@ -14,10 +15,11 @@ from dagster import (
     ConfigurableIOManager,
     InputContext,
     OutputContext,
-    RunRecord,
 )
 from pydantic import Field
 from sqlalchemy import create_engine, text
+
+from dagster_crypto_data.defs.utils import get_run_info
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
@@ -130,49 +132,6 @@ class S3IOManager(ConfigurableIOManager):
             use_ssl=self.use_ssl,
         )
 
-    def _get_run_info(self, context: OutputContext | InputContext) -> dict[str, str]:
-        """Extract run information from Dagster context.
-
-        Retrieves run ID and timestamp from the Dagster run record. Used to generate
-        unique S3 keys and metadata for stored files.
-
-        Args:
-            context: Dagster output or input context containing run information
-
-        Returns:
-            Dictionary with keys:
-                - run_id: The Dagster run ID or "No run id" if unavailable
-                - timestamp: Unix timestamp in milliseconds as string
-                - dt: Formatted datetime string (YY-MM-DD HH:MM:SS.ffffff)
-        """
-        run_id: str = "No run id"
-
-        if isinstance(context, OutputContext):
-            run_id = context.run_id
-        elif isinstance(context, InputContext):
-            # Check if upstream_output exists and has a run_id
-            upstream = getattr(context, "upstream_output", None)
-            if upstream is not None:
-                run_id = getattr(upstream, "run_id", None) or "No run id"
-
-        # Try to get run record for timestamp, with fallback to current time
-        dt: datetime = datetime.now(UTC)
-
-        step_context = getattr(context, "step_context", None)
-        if step_context is not None and run_id != "No run id":
-            instance = getattr(step_context, "instance", None)
-            if instance is not None:
-                run: RunRecord | None = instance.get_run_record_by_id(run_id)
-                if run is not None and run.create_timestamp is not None:
-                    dt = run.create_timestamp
-
-        timestamp: str = str(int(dt.timestamp() * 1000))
-        return {
-            "run_id": run_id,
-            "timestamp": timestamp,
-            "dt": dt.strftime("%y-%m-%d %H:%M:%S.%f"),
-        }
-
     def _get_s3_key(
         self, context: OutputContext | InputContext, timestamp: str | int
     ) -> str:
@@ -208,7 +167,7 @@ class S3IOManager(ConfigurableIOManager):
         if not isinstance(obj, dict):
             raise TypeError(f"S3IOManager expects dict, got {type(obj).__name__}")
 
-        run_info: dict = self._get_run_info(context)
+        run_info: dict = get_run_info(context)
         run_id: str = run_info["run_id"]
         run_timestamp: str = run_info["timestamp"]
         run_dt: str = run_info["dt"]
@@ -238,9 +197,13 @@ class S3IOManager(ConfigurableIOManager):
                 Body=json_data.encode("utf-8"),
                 Metadata={
                     "run_id": run_id,
+                    # Extraction timestamp
                     "timestamp": str(timestamp) if timestamp else "",
+                    # Extraction datetime
                     "dt": dt_str,
+                    # Dagster job timestamp
                     "run_timestamp": run_timestamp,
+                    # Dagster job datetime
                     "run_dt": run_dt,
                     "loaded": "false",
                 },
@@ -297,8 +260,8 @@ class S3IOManager(ConfigurableIOManager):
             return False
 
     def _get_max_extraction_timestamp(
-        self, context: InputContext
-    ) -> tuple[str | None, bool]:
+        self, context: InputContext, exchange_id: str
+    ) -> tuple[list[float] | None, bool]:
         """Query database for max extraction_timestamp from target table.
 
         Args:
@@ -336,24 +299,24 @@ class S3IOManager(ConfigurableIOManager):
 
             # Query max extraction_timestamp
             query = text(
-                f"SELECT MAX(extraction_timestamp) as max_ts FROM {full_table_name}"
+                f"SELECT distinct(extraction_timestamp) as max_ts FROM {full_table_name} where exchange_id = '{exchange_id}'"
             )
 
             with engine.connect() as conn:
                 result = conn.execute(query)
-                row = result.fetchone()
-                max_ts = row[0] if row else None
+                rows = result.fetchall()
+                max_ts = [r[0] for r in rows] if rows else None
 
             engine.dispose()
 
             if max_ts:
                 context.log.info(
-                    f"Max extraction_timestamp in {full_table_name}: {max_ts}"
+                    f"extraction_timestamp in {full_table_name}: {max_ts, }"
                 )
-                return (str(max_ts), False)
+                return (list(map(float, max_ts)), False)
             else:
                 context.log.info(
-                    f"Table {full_table_name} is empty - will load ALL files"
+                    f"Table {full_table_name} is empty, for exchange_id '{exchange_id}' - will load ALL files"
                 )
                 return (None, True)  # Table exists but is empty
 
@@ -382,9 +345,11 @@ class S3IOManager(ConfigurableIOManager):
         """
         s3_client = self._get_s3_client()
         unloaded_keys: list[str] = []
-
+        exchange_id = asset_prefix.split("/")[0]
         # Get max timestamp from database
-        max_db_timestamp, table_is_empty = self._get_max_extraction_timestamp(context)
+        max_db_timestamps, table_is_empty = self._get_max_extraction_timestamp(
+            context, exchange_id
+        )
 
         try:
             # List all objects with the asset prefix
@@ -406,12 +371,16 @@ class S3IOManager(ConfigurableIOManager):
                         unloaded_keys.append(key)
                         context.log.debug(f"Table empty - loading file {key}")
                     # Strategy 2: Table has data - compare timestamps
-                    elif max_db_timestamp is not None:
-                        file_extraction_ts = metadata.get("dt")  # ISO format timestamp
-                        if file_extraction_ts and file_extraction_ts > max_db_timestamp:
+                    elif max_db_timestamps is not None:
+                        file_extraction_ts = float(
+                            metadata.get("timestamp")
+                        )  # ISO format timestamp
+                        if file_extraction_ts and int(file_extraction_ts) not in map(
+                            int, max_db_timestamps
+                        ):
                             unloaded_keys.append(key)
                             context.log.debug(
-                                f"File {key} timestamp {file_extraction_ts} > DB max {max_db_timestamp}"
+                                f"File {key} timestamp {int(file_extraction_ts)} not in DB {max_db_timestamps, }"
                             )
                     # Strategy 3: Fallback to loaded metadata flag
                     else:
@@ -450,7 +419,7 @@ class S3IOManager(ConfigurableIOManager):
 
         if has_upstream:
             # Normal mode: Load only the file from the current run
-            run_info: dict = self._get_run_info(context)
+            run_info: dict = get_run_info(context)
             run_id = run_info["run_id"]
             timestamp: int = int(run_info["timestamp"])
             context.log.info(
