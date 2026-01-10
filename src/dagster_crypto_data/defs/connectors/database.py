@@ -98,14 +98,12 @@ class DatabaseManagement(BaseModel):
     @property
     def engine(self) -> Engine:
         """Get or create the SQLAlchemy engine.
-
         The engine is lazily created on first access and cached per instance.
-
+        Schema and tables are automatically created on first access.
         Returns:
             SQLAlchemy Engine instance.
-
         Raises:
-            RuntimeError: If database connection fails.
+            RuntimeError: If database connection or schema creation fails.
         """
         if self._engine is None:
             try:
@@ -115,18 +113,11 @@ class DatabaseManagement(BaseModel):
                     pool_pre_ping=True,  # Verify connections before use
                     pool_recycle=3600,  # Recycle connections after 1 hour
                 )
+                self._create_schema_and_tables(self._engine)
             except SQLAlchemyError as e:
                 logger.error(f"Failed to create database engine: {e}")
                 raise RuntimeError(f"Database connection failed: {e}") from e
         return self._engine
-
-    def ensure_tables_exist(self) -> None:
-        """Explicitly trigger schema and table creation.
-
-        This should only be called during asset execution to avoid
-        connecting to the database during definition loading.
-        """
-        self._create_schema_and_tables(self.engine)
 
     def inspect_table_exists(self, model: type[SQLModel]) -> bool:
         """Check if a table exists in the database.
