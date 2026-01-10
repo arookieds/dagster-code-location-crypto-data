@@ -71,11 +71,31 @@ transform_assets = [
 extract_job = define_asset_job(
     name="extract_crypto_data",
     selection=extract_assets,
+    tags={
+        "dagster-k8s/config": {
+            "container_config": {
+                "resources": {
+                    "requests": {"cpu": "200m", "memory": "512Mi"},
+                    "limits": {"cpu": "1000m", "memory": "1024Mi"},
+                }
+            }
+        }
+    },
 )
 
 transform_job = define_asset_job(
     name="transform_crypto_data",
     selection=transform_assets,
+    tags={
+        "dagster-k8s/config": {
+            "container_config": {
+                "resources": {
+                    "requests": {"cpu": "200m", "memory": "512Mi"},
+                    "limits": {"cpu": "1000m", "memory": "1024Mi"},
+                }
+            }
+        }
+    },
 )
 
 # Schedules
