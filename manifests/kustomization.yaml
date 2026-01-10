@@ -17,7 +17,7 @@ helmCharts:
     namespace: dagster
     valuesInline:
       global:
-        postgresqlSecretName: "dagster-crypto-secrets"
+        postgresqlSecretName: "postgres-secrets"
       deployments:
         - name: "crypto-data"
           image:
@@ -44,23 +44,14 @@ helmCharts:
           # Resource limits
           resources:
             limits:
-              cpu: 1000m
-              memory: 1024Mi
+              cpu: 350m
+              memory: 256Mi
             requests:
               cpu: 200m
-              memory: 512Mi
+              memory: 128Mi
 
           # Liveness probe
-          livenessProbe:
-            exec:
-              command:
-                - "python"
-                - "-c"
-                - "import dagster; print('alive')"
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            timeoutSeconds: 10
-            failureThreshold: 3
+          livenessProbe: {}
 
           # Readiness probe
           readinessProbe:
@@ -100,24 +91,3 @@ metadata:
 
   annotations:
     managed-by: "kustomize"
-
-patches:
-  - target:
-      kind: Deployment
-      labelSelector: "app.kubernetes.io/instance=crypto-data,component=user-deployments"
-    patch: |
-      apiVersion: apps/v1
-      kind: Deployment
-      metadata:
-        name: placeholder-name-for-validation
-      spec:
-        template:
-          spec:
-            containers:
-              - name: dagster-user-deployments
-                env:
-                  - name: DAGSTER_PG_PASSWORD
-                    valueFrom:
-                      secretKeyRef:
-                        name: dagster-crypto-secrets
-                        key: DB_PASSWORD
