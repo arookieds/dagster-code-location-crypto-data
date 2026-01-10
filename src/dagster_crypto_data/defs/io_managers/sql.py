@@ -261,7 +261,11 @@ class SQLIOManager(ConfigurableIOManager):
         # Get schema from model or fallback to configured schema
         schema = self._get_schema_for_context(context) or self.db_schema
 
-        # Get SQLAlchemy engine - this triggers schema/table creation via SQLModel
+        # Explicitly ensure tables exist only when we are about to write
+        # This avoids connecting to the database during definition loading
+        db_manager.ensure_tables_exist()
+
+        # Get SQLAlchemy engine
         engine = db_manager.engine
 
         # Check if table exists
