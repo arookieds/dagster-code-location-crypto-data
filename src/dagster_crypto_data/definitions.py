@@ -91,7 +91,7 @@ transform_job = define_asset_job(
             "container_config": {
                 "resources": {
                     "requests": {"cpu": "100m", "memory": "128Mi"},
-                    "limits": {"cpu": "500m", "memory": "1024Mi"},
+                    "limits": {"cpu": "500m", "memory": "2048Mi"},
                 }
             }
         }
