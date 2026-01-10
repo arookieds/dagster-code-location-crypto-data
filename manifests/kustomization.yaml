@@ -22,7 +22,7 @@ helmCharts:
         - name: "crypto-data"
           image:
             repository: "ghcr.io/arookieds/dagster-code-location-crypto-data"
-            tag: "dev"
+            tag: "latest"
             pullPolicy: "Always"
 
           dagsterApiGrpcArgs:
