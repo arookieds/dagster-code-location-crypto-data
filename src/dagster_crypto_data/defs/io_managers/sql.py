@@ -295,8 +295,6 @@ class SQLIOManager(ConfigurableIOManager):
         else:  # postgresql, mysql, mariadb, oracle, mssql, etc.
             connection_uri = engine.url.render_as_string(hide_password=False)
 
-        context.log.debug(native_df, stack_info=True)
-
         # Use Polars write_database with ADBC engine for Arrow-based writes
         # Append if table exists, or create if auto_create_tables is enabled
         if_exists = "append" if table_exists else "replace"

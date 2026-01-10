@@ -1,5 +1,8 @@
 version: "3"
 
+vars:
+  ENV: LOCAL
+
 tasks:
   dev:
     desc: Start Dagster development server
@@ -14,7 +17,7 @@ tasks:
   clean:
     desc: Clean temporary files, caches, and local run data
     cmds:
-      - rm -rf .pytest_cache .ruff_cache .mypy_cache .coverage htmlcov site/ local_runs/ tmp*.db
+      - rm -rf .pytest_cache .ruff_cache .mypy_cache .coverage htmlcov site/ local_runs/ tmp*.db .tmp_dagster_*/
 
   docs:
     desc: Start MkDocs development server
@@ -31,18 +34,41 @@ tasks:
   build:
     desc: Run Podman build and tag the image
     cmds:
-      - podman build -t ghcr.io/arookieds/dagster-code-location-crypto-data:latest .
+      - podman build --platform linux/amd64 -t ghcr.io/arookieds/dagster-code-location-crypto-data:latest -f {{if eq .ENV "LOCAL"}} Dockerfile.local {{else}} Dockerfile {{end}} .
 
-  build-run:
-    desc: Run Podman build, tag the image, and runs it
+  build-push:
+    desc: Run Podman build, tag the image, and push to github
     cmds:
       - task: build
-      - podman run --rm -p 3000:3000 ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+      - podman push ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+
+  rollout-restart:
+    desc: Run kubectl rollout restart of the deployment
+    cmds:
+      - kubectl rollout restart deploy -n dagster --selector=app.kubernetes.io/instance=crypto-data
 
   run:
     desc: Run Podman run on the built image
     cmds:
-      - podman run --rm -p 3000:3000 ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+      - podman run -d --platform linux/amd64 -p 3000:3000 ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+
+  build-run:
+    desc: Run Podman build, tag the image, and runs it
+    watch: true
+    sources:
+      - src/**/*.py
+    vars:
+      CONTAINER:
+        sh: podman ps -q --filter ancestor=ghcr.io/arookieds/dagster-code-location-crypto-data:latest
+    cmds:
+      - '{{if ne .CONTAINER ""}}podman kill {{.CONTAINER}}; echo Contatiner {{.CONTAINER}} killed!; podman rm {{.CONTAINER}}{{else}}echo "No container to kill!"{{end}}'
+      - task: build
+      - task: run
+
+  deploy:
+    desc: Deploy the code location to the current enabled context
+    cmds:
+      - kubectl kustomize manifests/ --enable-helm | kubectl apply -f -
 
   validate:
     desc: Validate Dagster definitions

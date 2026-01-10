@@ -9,6 +9,7 @@ import pytest
 from botocore.exceptions import ClientError
 from dagster import AssetKey
 
+import dagster_crypto_data.defs.io_managers.s3 as s3_module
 from dagster_crypto_data.defs.io_managers import S3IOManager
 
 
@@ -255,7 +256,7 @@ class TestS3IOManager:
         }
 
         monkeypatch.setattr(s3_io_manager, "_get_s3_client", lambda: fake_s3_client)
-        monkeypatch.setattr(s3_io_manager, "_get_run_info", lambda ctx: run_info)
+        monkeypatch.setattr(s3_module, "get_run_info", lambda ctx: run_info)
 
         s3_io_manager.handle_output(output_context, sample_data)  # type: ignore[arg-type]
 
@@ -303,7 +304,7 @@ class TestS3IOManager:
         )
 
         monkeypatch.setattr(s3_io_manager, "_get_s3_client", lambda: fake_s3_client)
-        monkeypatch.setattr(s3_io_manager, "_get_run_info", lambda ctx: run_info)
+        monkeypatch.setattr(s3_module, "get_run_info", lambda ctx: run_info)
 
         with pytest.raises(ClientError):
             s3_io_manager.handle_output(output_context, sample_data)  # type: ignore[arg-type]
@@ -332,7 +333,7 @@ class TestS3IOManager:
         }
 
         monkeypatch.setattr(s3_io_manager, "_get_s3_client", lambda: fake_s3_client)
-        monkeypatch.setattr(s3_io_manager, "_get_run_info", lambda ctx: run_info)
+        monkeypatch.setattr(s3_module, "get_run_info", lambda ctx: run_info)
         # Simulate running with extract (has upstream output)
         monkeypatch.setattr(s3_io_manager, "_has_upstream_output", lambda ctx: True)
 
@@ -459,7 +460,7 @@ class TestS3IOManager:
 
         # Don't pre-populate - file doesn't exist
         monkeypatch.setattr(s3_io_manager, "_get_s3_client", lambda: fake_s3_client)
-        monkeypatch.setattr(s3_io_manager, "_get_run_info", lambda ctx: run_info)
+        monkeypatch.setattr(s3_module, "get_run_info", lambda ctx: run_info)
         monkeypatch.setattr(s3_io_manager, "_has_upstream_output", lambda ctx: True)
 
         # Should not raise, just return empty merged data
@@ -491,7 +492,7 @@ class TestS3IOManager:
         )
 
         monkeypatch.setattr(s3_io_manager, "_get_s3_client", lambda: fake_s3_client)
-        monkeypatch.setattr(s3_io_manager, "_get_run_info", lambda ctx: run_info)
+        monkeypatch.setattr(s3_module, "get_run_info", lambda ctx: run_info)
         monkeypatch.setattr(s3_io_manager, "_has_upstream_output", lambda ctx: True)
 
         with pytest.raises(ClientError):

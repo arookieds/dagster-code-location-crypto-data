@@ -232,3 +232,6 @@ manifests/sealed-secrets/
 
 # Helm Charts
 **/charts/
+
+# Go-task
+.task/

@@ -91,7 +91,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
             Tuple of (database, connection)
         """
         try:
-            import kuzu
+            import kuzu  # pyright: ignore[reportMissingImports]
         except ImportError as e:
             raise ImportError(
                 "KuzuDB is not installed. Install it with: uv add kuzu"
@@ -132,7 +132,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
             native_df = pl.from_arrow(arrow_table)
 
         native_df = cast("pl.DataFrame", native_df)
-        db, conn = self._get_kuzu_connection()
+        _, conn = self._get_kuzu_connection()
         table_name = self._get_node_table_name(context)
 
         # Drop existing table if it exists
@@ -215,7 +215,7 @@ class KuzuDBIOManager(ConfigurableIOManager):
                 f"Make sure the upstream asset has been materialized."
             )
 
-        db, conn = self._get_kuzu_connection()
+        _, conn = self._get_kuzu_connection()
         table_name = self._get_node_table_name(context)
 
         # Query all nodes from table

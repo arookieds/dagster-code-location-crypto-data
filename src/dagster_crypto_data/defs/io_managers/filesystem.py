@@ -6,8 +6,10 @@ import json
 from pathlib import Path
 from typing import Any, cast
 
-from dagster import ConfigurableIOManager, InputContext, OutputContext
+from dagster import AssetKey, ConfigurableIOManager, InputContext, OutputContext
 from pydantic import Field
+
+from dagster_crypto_data.defs.utils import get_run_info
 
 
 class FilesystemIOManager(ConfigurableIOManager):
@@ -43,7 +45,32 @@ class FilesystemIOManager(ConfigurableIOManager):
         description="Create directories if they don't exist",
     )
 
-    def _get_path(self, context: OutputContext | InputContext) -> Path:
+    def _get_upstream_asset_key(self, context: InputContext) -> AssetKey:
+        """Get the upstream asset key from InputContext.
+
+        When an asset loads an input, we need the key of the upstream asset
+        that produced the data, not the key of the consuming asset.
+
+        Args:
+            context: Dagster input context
+
+        Returns:
+            AssetKey of the upstream asset
+        """
+        # In Dagster, InputContext.asset_key should be the upstream asset key
+        # But if there's an upstream_output, we can get it from there too
+        upstream = getattr(context, "upstream_output", None)
+        if upstream is not None:
+            upstream_asset_key = getattr(upstream, "asset_key", None)
+            if upstream_asset_key is not None:
+                return cast("AssetKey", upstream_asset_key)
+
+        # Fallback to context.asset_key (should be upstream asset in normal cases)
+        return context.asset_key
+
+    def _get_path(
+        self, context: OutputContext | InputContext, timestamp: str | int
+    ) -> Path:
         """Get the file path for an asset.
 
         Args:
@@ -52,10 +79,13 @@ class FilesystemIOManager(ConfigurableIOManager):
         Returns:
             Path object for the asset file
         """
-        # Use asset key path to create nested directory structure
-        # e.g., extract_binance_ohlcv -> extract/binance/ohlcv.json
-        asset_path = "/".join(context.asset_key.path)
-        return Path(self.base_path) / f"{asset_path}.json"
+        if isinstance(context, InputContext):
+            asset_key = self._get_upstream_asset_key(context)
+        else:
+            asset_key = context.asset_key
+
+        asset_path: str = "/".join(asset_key.path).replace("_", "/")
+        return Path(self.base_path) / f"{asset_path}_{timestamp}.json"
 
     def handle_output(self, context: OutputContext, obj: dict[str, Any]) -> None:
         """Store a dictionary as a JSON file.
@@ -71,8 +101,9 @@ class FilesystemIOManager(ConfigurableIOManager):
             raise TypeError(
                 f"FilesystemIOManager expects dict, got {type(obj).__name__}"
             )
-
-        filepath = self._get_path(context)
+        run_info: dict = get_run_info(context)
+        run_timestamp: str = run_info["timestamp"]
+        filepath = self._get_path(context, run_timestamp)
 
         # Create parent directories if needed
         if self.create_dirs:
@@ -96,7 +127,9 @@ class FilesystemIOManager(ConfigurableIOManager):
         Raises:
             FileNotFoundError: If the file doesn't exist
         """
-        filepath = self._get_path(context)
+        run_info: dict = get_run_info(context)
+        run_timestamp: str = run_info["timestamp"]
+        filepath = self._get_path(context, run_timestamp)
 
         if not filepath.exists():
             raise FileNotFoundError(

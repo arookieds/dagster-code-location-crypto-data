@@ -156,9 +156,11 @@ class DatabaseManagement(BaseModel):
                 # Import models to register them with SQLModel.metadata
                 # These models have schema definitions for PostgreSQL
                 from dagster_crypto_data.defs.models.pipeline_configs import (
-                    PipelineConfig,  # noqa: F401
+                    PipelineConfig,  # noqa: F401 # pyright: ignore[reportUnusedImport]
                 )
-                from dagster_crypto_data.defs.models.tickers import Ticker  # noqa: F401
+                from dagster_crypto_data.defs.models.tickers import (
+                    Ticker,  # noqa: F401 # pyright: ignore[reportUnusedImport]
+                )
 
                 # Create all tables from SQLModel.metadata (only for PostgreSQL)
                 # This creates tables with their schema definitions

@@ -14,6 +14,7 @@ from dagster import (
     build_output_context,
 )
 
+import dagster_crypto_data.defs.io_managers.filesystem as fs_module
 from dagster_crypto_data.defs.io_managers import FilesystemIOManager
 
 if TYPE_CHECKING:
@@ -71,12 +72,17 @@ class TestFilesystemIOManager:
         output_context: OutputContext,
         sample_data: dict[str, Any],
         temp_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test that handle_output creates a JSON file."""
+        timestamp = "123456789"
+        monkeypatch.setattr(
+            fs_module, "get_run_info", lambda ctx: {"timestamp": timestamp}
+        )
         filesystem_io_manager.handle_output(output_context, sample_data)
 
-        # Check file exists
-        expected_file = temp_data_dir / "extract_binance_ohlcv.json"
+        # Check file exists - new path format: extract/binance/ohlcv_123456789.json
+        expected_file = temp_data_dir / "extract" / "binance" / f"ohlcv_{timestamp}.json"
         assert expected_file.exists()
 
         # Check file content
@@ -89,16 +95,26 @@ class TestFilesystemIOManager:
         filesystem_io_manager: FilesystemIOManager,
         sample_data: dict[str, Any],
         temp_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test that handle_output creates nested directories."""
+        timestamp = "123456789"
+        monkeypatch.setattr(
+            fs_module, "get_run_info", lambda ctx: {"timestamp": timestamp}
+        )
         context = build_output_context(
             asset_key=AssetKey(["extract", "binance", "ohlcv"])
         )
         filesystem_io_manager.handle_output(context, sample_data)
 
         # Check nested file exists
-        expected_file = temp_data_dir / "extract" / "binance" / "ohlcv.json"
+        expected_file = temp_data_dir / "extract" / "binance" / f"ohlcv_{timestamp}.json"
         assert expected_file.exists()
+
+        # Check file content
+        with open(expected_file) as f:
+            loaded_data = json.load(f)
+        assert loaded_data == sample_data
 
     def test_handle_output_with_invalid_type_raises_error(
         self,
@@ -115,8 +131,12 @@ class TestFilesystemIOManager:
         output_context: OutputContext,
         input_context: InputContext,
         sample_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test that load_input reads the JSON file."""
+        monkeypatch.setattr(
+            fs_module, "get_run_info", lambda ctx: {"timestamp": "123456789"}
+        )
         # First, write the file
         filesystem_io_manager.handle_output(output_context, sample_data)
 
@@ -128,8 +148,12 @@ class TestFilesystemIOManager:
         self,
         filesystem_io_manager: FilesystemIOManager,
         input_context: InputContext,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test that load_input raises FileNotFoundError if file doesn't exist."""
+        monkeypatch.setattr(
+            fs_module, "get_run_info", lambda ctx: {"timestamp": "123456789"}
+        )
         with pytest.raises(FileNotFoundError, match="Asset file not found"):
             filesystem_io_manager.load_input(input_context)
 
@@ -138,8 +162,12 @@ class TestFilesystemIOManager:
         filesystem_io_manager: FilesystemIOManager,
         output_context: OutputContext,
         sample_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test that handle_output overwrites existing files."""
+        monkeypatch.setattr(
+            fs_module, "get_run_info", lambda ctx: {"timestamp": "123456789"}
+        )
         # Write first version
         filesystem_io_manager.handle_output(output_context, sample_data)
 
@@ -157,8 +185,12 @@ class TestFilesystemIOManager:
         self,
         temp_data_dir: Path,
         sample_data: dict[str, Any],
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test FilesystemIOManager with create_dirs=False."""
+        monkeypatch.setattr(
+            fs_module, "get_run_info", lambda ctx: {"timestamp": "123456789"}
+        )
         io_manager = FilesystemIOManager(base_path=str(temp_data_dir), create_dirs=False)
 
         # Should fail for nested paths
@@ -174,10 +206,16 @@ class TestFilesystemIOManager:
         filesystem_io_manager: FilesystemIOManager,
         sample_data: dict[str, Any],
         temp_data_dir: Path,
+        monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         """Test handle_output with special characters in asset key."""
+        timestamp = "123456789"
+        monkeypatch.setattr(
+            fs_module, "get_run_info", lambda ctx: {"timestamp": timestamp}
+        )
         context = build_output_context(asset_key=AssetKey(["extract_btc_usdt"]))
         filesystem_io_manager.handle_output(context, sample_data)
 
-        expected_file = temp_data_dir / "extract_btc_usdt.json"
+        # New path format: extract/btc/usdt_123456789.json
+        expected_file = temp_data_dir / "extract" / "btc" / f"usdt_{timestamp}.json"
         assert expected_file.exists()

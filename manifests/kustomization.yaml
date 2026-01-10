@@ -22,7 +22,7 @@ helmCharts:
         - name: "crypto-data"
           image:
             repository: "ghcr.io/arookieds/dagster-code-location-crypto-data"
-            tag: "latest"
+            tag: "dev"
             pullPolicy: "Always"
 
           dagsterApiGrpcArgs:
@@ -44,11 +44,11 @@ helmCharts:
           # Resource limits
           resources:
             limits:
-              cpu: 500m
-              memory: 512Mi
+              cpu: 1000m
+              memory: 1024Mi
             requests:
-              cpu: 100m
-              memory: 256Mi
+              cpu: 200m
+              memory: 512Mi
 
           # Liveness probe
           livenessProbe:

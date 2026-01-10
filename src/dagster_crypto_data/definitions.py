@@ -21,31 +21,81 @@ logger = get_logger(__name__)
 settings = get_settings()
 
 # Extract assets - fetch data from exchanges
-binance_extract = extract_asset_factory(
-    asset_name="binance_raw_tickers",
-    group_name="extract",
-    exchange_id="binance",
-)
+extract_assets = [
+    binance_extract := extract_asset_factory(
+        asset_name="binance_raw_tickers",
+        group_name="extract",
+        exchange_id="binance",
+    ),
+    bybit_extract_extract := extract_asset_factory(
+        asset_name="bybit_raw_tickers",
+        group_name="extract",
+        exchange_id="bybit",
+    ),
+    gate_extract := extract_asset_factory(
+        asset_name="gate_raw_tickers",
+        group_name="extract",
+        exchange_id="gate",
+    ),
+]
 
 # Transform assets - process raw data
-binance_transform = transform_asset_factory(
-    asset_name="binance_transformed_tickers",
-    group_name="transform",
-    exchange_id="binance",
-    source_asset_key="binance_raw_tickers",
-    model=Ticker,
-    io_manager_key="transform_io_manager",
-)
+transform_assets = [
+    binance_transform := transform_asset_factory(
+        asset_name="binance_transformed_tickers",
+        group_name="transform",
+        exchange_id="binance",
+        source_asset_key="binance_raw_tickers",
+        model=Ticker,
+        io_manager_key="transform_io_manager",
+    ),
+    bybit_transform := transform_asset_factory(
+        asset_name="bybit_transformed_tickers",
+        group_name="transform",
+        exchange_id="bybit",
+        source_asset_key="bybit_raw_tickers",
+        model=Ticker,
+        io_manager_key="transform_io_manager",
+    ),
+    gate_transform := transform_asset_factory(
+        asset_name="gate_transformed_tickers",
+        group_name="transform",
+        exchange_id="gate",
+        source_asset_key="gate_raw_tickers",
+        model=Ticker,
+        io_manager_key="transform_io_manager",
+    ),
+]
 
 # Define jobs
 extract_job = define_asset_job(
     name="extract_crypto_data",
-    selection=[binance_extract],
+    selection=extract_assets,
+    tags={
+        "dagster-k8s/config": {
+            "container_config": {
+                "resources": {
+                    "requests": {"cpu": "200m", "memory": "512Mi"},
+                    "limits": {"cpu": "1000m", "memory": "1024Mi"},
+                }
+            }
+        }
+    },
 )
 
 transform_job = define_asset_job(
     name="transform_crypto_data",
-    selection=[binance_transform],
+    selection=transform_assets,
+    tags={
+        "dagster-k8s/config": {
+            "container_config": {
+                "resources": {
+                    "requests": {"cpu": "200m", "memory": "512Mi"},
+                    "limits": {"cpu": "1000m", "memory": "1024Mi"},
+                }
+            }
+        }
+    },
 )
 
 # Schedules
@@ -93,12 +143,12 @@ else:
     transform_io_manager = DuckDBIOManager(db_path="./local_runs/crypto.duckdb")
 
 defs = Definitions(
-    assets=[binance_extract, binance_transform],
+    assets=[*extract_assets, *transform_assets],
     jobs=[extract_job, transform_job],
     schedules=[extract_schedule, transform_schedule],
     resources={
         "io_manager": extract_io_manager,
         "transform_io_manager": transform_io_manager,
-        "exchange": CCXTExchangeResource(exchange_id="binance"),
+        "exchange": CCXTExchangeResource(),
     },
 )
