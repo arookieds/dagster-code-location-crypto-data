@@ -14,6 +14,7 @@ from dagster_crypto_data.defs.io_managers import (
     SQLIOManager,
 )
 from dagster_crypto_data.defs.models.tickers import Ticker
+from dagster_crypto_data.defs.resources.database import DatabaseConfig
 from dagster_crypto_data.defs.resources.exchange import CCXTExchangeResource
 from dagster_crypto_data.defs.utils import get_logger, get_settings
 
@@ -112,23 +113,30 @@ transform_schedule = ScheduleDefinition(
 # Configure IO managers based on IS_PRODUCTION
 extract_io_manager: ConfigurableIOManager
 transform_io_manager: ConfigurableIOManager
+database_config: DatabaseConfig
 
 if settings.is_production:
+    # Create shared database config for production
+    database_config = DatabaseConfig(
+        db_type="postgresql",
+        host=settings.db_host,
+        port=settings.db_port,
+        db_name=settings.db_name,
+        username=settings.db_username,
+        password=settings.db_password.get_secret_value(),
+        db_schema="crypto_data",
+    )
+
     extract_io_manager = S3IOManager(
         endpoint_url=settings.s3_url,
         access_key=settings.s3_user,
         secret_key=settings.s3_password.get_secret_value(),
         bucket=settings.s3_bucket,
         use_ssl=not settings.s3_url.startswith("http://"),
-        # Database config for timestamp-based filtering
-        db_host=settings.db_host,
-        db_port=settings.db_port,
-        db_name=settings.db_name,
-        db_username=settings.db_username,
-        db_password=settings.db_password.get_secret_value(),
-        db_schema="crypto_data",
-        target_table_name="raw_tickers",  # Table where transform writes the data
+        # Use shared database config for timestamp-based filtering
+        database=database_config,
     )
+
     transform_io_manager = SQLIOManager(
         db_type="postgresql",
         host=settings.db_host,
@@ -136,11 +144,25 @@ if settings.is_production:
         db_name=settings.db_name,
         username=settings.db_username,
         password=settings.db_password.get_secret_value(),
-        db_schema="public",  # Fallback schema (models define their own schema)
+        db_schema="crypto_data",  # Fallback schema (models define their own schema)
     )
 else:
-    extract_io_manager = FilesystemIOManager(base_path="./local_runs")
-    transform_io_manager = DuckDBIOManager(db_path="./local_runs/crypto.duckdb")
+    # Create shared database config for local development
+    database_config = DatabaseConfig(
+        db_type="duckdb",
+        db_name="./local_runs/crypto.duckdb",
+        db_schema="crypto_data",
+    )
+
+    transform_io_manager = DuckDBIOManager(
+        db_path="./local_runs/crypto.duckdb",
+        db_schema="crypto_data",
+    )
+
+    extract_io_manager = FilesystemIOManager(
+        base_path="./local_runs",
+        database=database_config,  # Use shared database config
+    )
 
 defs = Definitions(
     assets=[*extract_assets, *transform_assets],
@@ -149,6 +171,7 @@ defs = Definitions(
     resources={
         "io_manager": extract_io_manager,
         "transform_io_manager": transform_io_manager,
+        "database": database_config,
         "exchange": CCXTExchangeResource(),
     },
 )
