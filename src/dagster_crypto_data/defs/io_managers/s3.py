@@ -18,7 +18,7 @@ from dagster import (
 from pydantic import Field
 
 from dagster_crypto_data.defs import models
-from dagster_crypto_data.defs.resources.database import DatabaseConfig
+from dagster_crypto_data.defs.resources.database import DatabaseConfig  # noqa: TC001
 from dagster_crypto_data.defs.utils import get_run_info
 
 if TYPE_CHECKING:
@@ -240,7 +240,7 @@ class S3IOManager(ConfigurableIOManager):
         self,
         context: InputContext,
         exchange_id: str,
-        model: type["SQLModel"] | None = None,
+        model: type[SQLModel] | None = None,
     ) -> tuple[list[float] | None, bool]:
         """Query database for max extraction_timestamp from target table.
 
@@ -282,7 +282,7 @@ class S3IOManager(ConfigurableIOManager):
                     select distinct rt.extraction_timestamp
                     from {full_table_name} as rt
                         where rt.exchange_id  = :exchange_id
-                    group by rt.extraction_timestamp 
+                    group by rt.extraction_timestamp
                     having rt.extraction_timestamp > (
                         select max(rt2.extraction_timestamp)
                         from {full_table_name} as rt2
@@ -314,7 +314,7 @@ class S3IOManager(ConfigurableIOManager):
         self,
         context: InputContext,
         asset_prefix: str,
-        model: type["SQLModel"] | None = None,
+        model: type[SQLModel] | None = None,
     ) -> list[str]:
         """List S3 objects to load based on timestamp comparison or metadata flags.
 
@@ -404,7 +404,7 @@ class S3IOManager(ConfigurableIOManager):
         # Try to get model from asset metadata (optional for local mode)
         metadata = getattr(context, "definition_metadata", None) or {}
         model_name: str = metadata.get("model", "")
-        model = getattr(models, model_name)
+        model = getattr(models, model_name, None) if model_name else None
 
         if model is None:
             context.log.info(

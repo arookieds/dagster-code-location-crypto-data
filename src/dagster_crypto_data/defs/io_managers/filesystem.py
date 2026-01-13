@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from sqlmodel import SQLModel
 
 from dagster_crypto_data.defs import models
-from dagster_crypto_data.defs.resources.database import DatabaseConfig
+from dagster_crypto_data.defs.resources.database import DatabaseConfig  # noqa: TC001
 from dagster_crypto_data.defs.utils import get_max_extraction_timestamp, get_run_info
 
 
@@ -49,8 +49,9 @@ class FilesystemIOManager(ConfigurableIOManager):
         default=True,
         description="Create directories if they don't exist",
     )
-    database: DatabaseConfig = Field(
-        description="Database configuration for querying existing timestamps"
+    database: DatabaseConfig | None = Field(
+        default=None,
+        description="Database configuration for querying existing timestamps (optional for local filesystem mode)",
     )
 
     def _get_upstream_asset_key(self, context: InputContext) -> AssetKey:
@@ -189,7 +190,7 @@ class FilesystemIOManager(ConfigurableIOManager):
         self,
         context: InputContext,
         asset_prefix: str,
-        model: type["SQLModel"] | None = None,
+        model: type[SQLModel] | None = None,
     ) -> list[str]:
         """List files to load based on timestamp comparison or metadata flags.
 
@@ -226,16 +227,20 @@ class FilesystemIOManager(ConfigurableIOManager):
         data_files: list = sorted([f for f in files if "meta" not in f])
         metadata_files: list = sorted([f for f in files if "meta" in f])
 
-        # If model is provided, use database-based filtering
-        if model is not None:
+        # If model is provided and database is available, use database-based filtering
+        if model is not None and self.database is not None:
+            # Cast model from SQLModel to CryptoModel (both have same schema)
             max_db_timestamps, table_is_empty = get_max_extraction_timestamp(
-                context, self.database, exchange_id, model
+                context,
+                self.database,
+                exchange_id,
+                cast("type", model),
             )
 
             for file, meta in zip(data_files, metadata_files, strict=False):
                 try:
                     meta_path = path / meta
-                    with open(meta_path, "r") as fm:
+                    with open(meta_path) as fm:
                         m = json.load(fm)
                         timestamp = int(float(m.get("timestamp")))
                     if timestamp not in map(int, max_db_timestamps):
@@ -252,7 +257,7 @@ class FilesystemIOManager(ConfigurableIOManager):
             for file, meta in zip(data_files, metadata_files, strict=False):
                 try:
                     meta_path = path / meta
-                    with open(meta_path, "r") as fm:
+                    with open(meta_path) as fm:
                         meta_data = json.load(fm)
                     # Load file if marked as not loaded
                     if meta_data.get("loaded", "false").lower() != "true":
@@ -295,11 +300,11 @@ class FilesystemIOManager(ConfigurableIOManager):
             if not filepath.exists():
                 raise FileNotFoundError(f"File not found: {filepath}")
 
-            with open(filepath, "r") as f:
+            with open(filepath) as f:
                 data = json.load(f)
 
             context.log.info(f"Loaded asset from {filepath}")
-            return data
+            return cast("dict[str, Any]", data)
         else:
             # Running standalone - load ALL unloaded files
             context.log.info("Running standalone - loading ALL unloaded files")
@@ -313,7 +318,7 @@ class FilesystemIOManager(ConfigurableIOManager):
             # (we use metadata files for filtering instead)
             metadata = getattr(context, "definition_metadata", None) or {}
             model_name: str = metadata.get("model", "")
-            model = getattr(models, model_name)
+            model = getattr(models, model_name, None) if model_name else None
 
             # Pass model to _list_unloaded_files (may be None for local filesystem mode)
             files_to_load = self._list_unloaded_files(context, asset_path, model)
@@ -335,7 +340,7 @@ class FilesystemIOManager(ConfigurableIOManager):
                 filepath = base_path / filename
 
                 try:
-                    with open(filepath, "r") as f:
+                    with open(filepath) as f:
                         file_data = json.load(f)
 
                     context.log.info(f"Loaded asset from {filepath}")
@@ -349,7 +354,7 @@ class FilesystemIOManager(ConfigurableIOManager):
                     extraction_ts = file_metadata.get("timestamp")
 
                     # Flatten ticker data into records
-                    for symbol, ticker_info in ticker_data.items():
+                    for _symbol, ticker_info in ticker_data.items():
                         record = {
                             **ticker_info,
                             "extraction_timestamp": extraction_ts,
@@ -360,7 +365,7 @@ class FilesystemIOManager(ConfigurableIOManager):
                     # Mark as loaded in metadata file
                     metadata_path = self._get_metadata_path(filepath)
                     if metadata_path.exists():
-                        with open(metadata_path, "r") as f:
+                        with open(metadata_path) as f:
                             meta = json.load(f)
                         meta["loaded"] = "true"
                         with open(metadata_path, "w") as f:

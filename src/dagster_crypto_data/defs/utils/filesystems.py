@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from sqlalchemy import Engine
 
     from dagster_crypto_data.defs.connectors.database import DatabaseManagement
-    from dagster_crypto_data.defs.io_managers import DuckDBIOManager
     from dagster_crypto_data.defs.models import CryptoModel
     from dagster_crypto_data.defs.resources.database import DatabaseConfig
 
@@ -20,10 +19,10 @@ __all__ = ["get_max_extraction_timestamp"]
 
 
 def get_max_extraction_timestamp(
-    context: "InputContext",
-    database: "DatabaseConfig",
+    context: InputContext,
+    database: DatabaseConfig,
     exchange_id: str,
-    model: "type[CryptoModel]",
+    model: type[CryptoModel],
 ) -> tuple[list[float], bool]:
     """Get maximum extraction timestamps from database for incremental loading.
 
@@ -64,10 +63,10 @@ def get_max_extraction_timestamp(
 
 
 def _get_duckdb_ts(
-    logger: "DagsterLogManager",
-    database: "DatabaseConfig",
+    logger: DagsterLogManager,
+    database: DatabaseConfig,
     exchange_id: str,
-    model: "type[CryptoModel]",
+    model: type[CryptoModel],
 ) -> list:
     table: str = model.__tablename__
     schema: str = model.__table_args__["schema"]
@@ -75,11 +74,10 @@ def _get_duckdb_ts(
     try:
         with duckdb.connect(database.db_name, read_only=True) as conn:
             logger.info(f"Checking if table '{schema}.{table} exists'")
-            exists: bool = conn.execute(
+            result = conn.execute(
                 f"select count(*) > 0 from duckdb_tables where table_name = '{table}' and schema_name = '{schema}'"
-            ).fetchone()[
-                0
-            ]  # ty:ignore[not-subscriptable]
+            ).fetchone()
+            exists: bool = result[0] if result is not None else False
             if exists:
                 logger.info(
                     f"Table '{schema}.{table}' exists. Trying to retrieve extraction_timestamp"
@@ -110,10 +108,10 @@ def _get_duckdb_ts(
 
 
 def _get_db_ts_from_config(
-    context: "InputContext",
-    database: "DatabaseConfig",
+    context: InputContext,
+    database: DatabaseConfig,
     exchange_id: str,
-    model: "type[CryptoModel]",
+    model: type[CryptoModel],
 ) -> list:
     """Get timestamps from database using DatabaseConfig resource.
 
@@ -133,13 +131,17 @@ def _get_db_ts_from_config(
     full_table_name = f"{schema}.{table}" if schema else table
 
     try:
+        from sqlalchemy import text
+
         db_manager: DatabaseManagement = database.get_db_manager()
         engine: Engine = db_manager.engine
         db_manager._create_schema_and_tables(engine)
 
         with engine.connect() as conn:
             rows = conn.execute(
-                f"select distinct extraction_timestamp from {full_table_name} where exchange_id = '{exchange_id}'"
+                text(
+                    f"select distinct extraction_timestamp from {full_table_name} where exchange_id = '{exchange_id}'"
+                )
             ).fetchall()
             max_ts: list = [r[0] for r in rows] if rows else []
             context.log.info(f"Retrieved {len(max_ts) if max_ts else 0} timestamps")

@@ -265,3 +265,176 @@ class TestSQLIOManagerPostgreSQL:
         assert io_manager.db_name == "test_db"
         assert io_manager.username == "test_user"
         assert io_manager.db_schema == "analytics"
+
+
+class TestSQLIOManagerModelResolution:
+    """Test SQLIOManager model resolution functionality."""
+
+    def test_get_model_for_context_with_string_model_name(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_model_for_context resolves string model names to classes."""
+        from dagster_crypto_data.defs.models import Ticker
+
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": "Ticker"},
+        )
+
+        model = sqlite_io_manager._get_model_for_context(context)
+        assert model is not None
+        assert model is Ticker
+
+    def test_get_model_for_context_with_class_model(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_model_for_context accepts class model directly."""
+        from dagster_crypto_data.defs.models import Ticker
+
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": Ticker},
+        )
+
+        model = sqlite_io_manager._get_model_for_context(context)
+        assert model is not None
+        assert model is Ticker
+
+    def test_get_model_for_context_returns_none_without_metadata(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_model_for_context returns None without model metadata."""
+        context = build_output_context(asset_key=AssetKey(["test_asset"]))
+
+        model = sqlite_io_manager._get_model_for_context(context)
+        assert model is None
+
+    def test_get_model_for_context_returns_none_with_invalid_string_model(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_model_for_context returns None with invalid model name."""
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": "NonExistentModel"},
+        )
+
+        model = sqlite_io_manager._get_model_for_context(context)
+        assert model is None
+
+    def test_get_model_for_context_ignores_invalid_types(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_model_for_context ignores non-string, non-class types."""
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": 123},  # Invalid type
+        )
+
+        model = sqlite_io_manager._get_model_for_context(context)
+        assert model is None
+
+    def test_get_table_name_uses_model_tablename(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_table_name uses model's __tablename__ when model is provided."""
+        from dagster_crypto_data.defs.models import Ticker
+
+        context = build_output_context(
+            asset_key=AssetKey(["some_random_asset"]),
+            definition_metadata={"model": "Ticker"},
+        )
+
+        table_name = sqlite_io_manager._get_table_name(context)
+        # Should use Ticker's __tablename__, not the asset key
+        assert table_name == Ticker.__tablename__
+
+    def test_get_table_name_falls_back_to_asset_key(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_table_name falls back to asset key when no model provided."""
+        context = build_output_context(asset_key=AssetKey(["custom", "asset", "key"]))
+
+        table_name = sqlite_io_manager._get_table_name(context)
+        # Should use asset key path
+        assert table_name == "custom_asset_key"
+
+    def test_get_schema_for_context_with_model(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_schema_for_context extracts schema from model for PostgreSQL."""
+        from dagster import build_output_context as build_ctx
+
+        from dagster_crypto_data.defs.models import Ticker
+
+        # Create a PostgreSQL io_manager
+        pg_manager = SQLIOManager(
+            db_type="postgresql",
+            host="localhost",
+            port=5432,
+            db_name="test_db",
+            username="user",
+            password="pass",
+            db_schema="public",
+        )
+
+        context = build_ctx(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": "Ticker"},
+        )
+
+        schema = pg_manager._get_schema_for_context(context)
+        # Should extract schema from Ticker's __table_args__
+        expected_schema = (
+            Ticker.__table_args__.get("schema")
+            if isinstance(Ticker.__table_args__, dict)
+            else None
+        )
+        assert schema == expected_schema
+
+    def test_get_schema_for_context_sqlite_returns_none(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_schema_for_context returns None for SQLite (doesn't support schemas)."""
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": "Ticker"},
+        )
+
+        schema = sqlite_io_manager._get_schema_for_context(context)
+        assert schema is None
+
+    def test_get_full_table_name_with_schema_postgresql(self) -> None:
+        """Test _get_full_table_name includes schema prefix for PostgreSQL."""
+        pg_manager = SQLIOManager(
+            db_type="postgresql",
+            host="localhost",
+            port=5432,
+            db_name="test_db",
+            username="user",
+            password="pass",
+            db_schema="analytics",
+        )
+
+        context = build_output_context(asset_key=AssetKey(["test_asset"]))
+
+        full_name = pg_manager._get_full_table_name("test_table", context)
+        assert full_name == "analytics.test_table"
+
+    def test_get_full_table_name_without_schema_sqlite(
+        self,
+        sqlite_io_manager: SQLIOManager,
+    ) -> None:
+        """Test _get_full_table_name excludes schema for SQLite."""
+        context = build_output_context(asset_key=AssetKey(["test_asset"]))
+
+        full_name = sqlite_io_manager._get_full_table_name("test_table", context)
+        assert full_name == "test_table"

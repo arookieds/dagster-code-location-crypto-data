@@ -67,7 +67,7 @@ class DuckDBIOManager(ConfigurableIOManager):
     @staticmethod
     def _get_model_from_context(
         context: OutputContext | InputContext,
-    ) -> type["SQLModel"] | None:
+    ) -> type[SQLModel] | None:
         """Get the SQLModel class from asset metadata.
 
         Args:
@@ -112,7 +112,7 @@ class DuckDBIOManager(ConfigurableIOManager):
     def _create_table_from_model(
         self,
         context: OutputContext,
-        model: type["SQLModel"],
+        model: type[SQLModel],
         conn: Any,
         table_name: str,
     ) -> None:
@@ -131,17 +131,15 @@ class DuckDBIOManager(ConfigurableIOManager):
             annotation = field_info.annotation
 
             # Handle Optional types (e.g., int | None, str | None)
-            if hasattr(annotation, "__origin__"):  # Union type like int | None
-                inner_type = annotation.__args__[0]
-            else:
-                inner_type = annotation
+            args = getattr(annotation, "__args__", None)
+            inner_type = args[0] if args is not None and len(args) > 0 else annotation
 
             # Map Python type to SQL type
-            if inner_type == int:
+            if inner_type is int:
                 sql_type = "BIGINT"
-            elif inner_type == float:
+            elif inner_type is float:
                 sql_type = "DOUBLE"
-            elif inner_type == bool:
+            elif inner_type is bool:
                 sql_type = "BOOLEAN"
             else:
                 sql_type = "VARCHAR"
@@ -151,9 +149,9 @@ class DuckDBIOManager(ConfigurableIOManager):
 
         # Build and execute CREATE TABLE statement
         columns_sql = ",\n        ".join(columns)
-        create_sql = f'''CREATE TABLE IF NOT EXISTS {self.db_schema}.{table_name} (
+        create_sql = f"""CREATE TABLE IF NOT EXISTS {self.db_schema}.{table_name} (
         {columns_sql}
-    )'''
+    )"""
 
         conn.execute(create_sql)
         context.log.debug(
@@ -218,9 +216,10 @@ class DuckDBIOManager(ConfigurableIOManager):
                         self._create_table_from_model(context, model, conn, table_name)
 
                     # Check if table exists after model creation
-                    table_exists = conn.execute(
+                    result = conn.execute(
                         f"SELECT count(*) > 0 FROM duckdb_tables WHERE table_name = '{table_name}' AND schema_name = '{self.db_schema}'"
-                    ).fetchone()[0]
+                    ).fetchone()
+                    table_exists = result[0] if result is not None else False
 
                     if not table_exists:
                         context.log.warning(
@@ -234,9 +233,22 @@ class DuckDBIOManager(ConfigurableIOManager):
                             f"CREATE TABLE {self.db_schema}.{table_name} AS SELECT * FROM source_data"
                         )
                     else:
-                        # Table exists - use INSERT BY NAME for intelligent column mapping
+                        # Table exists - get table columns and filter DataFrame to match
+                        # This prevents errors when DataFrame has extra columns not in table
+                        table_info = conn.execute(
+                            f"SELECT * FROM {self.db_schema}.{table_name} LIMIT 0"
+                        ).description
+                        table_columns = [col[0] for col in table_info]
+
+                        # Filter DataFrame to only columns that exist in the table
+                        df_columns_to_insert = [
+                            col for col in native_df.columns if col in table_columns
+                        ]
+                        df_filtered = native_df.select(df_columns_to_insert)
+
+                        # Use INSERT BY NAME for intelligent column mapping
                         # BY NAME handles column mapping gracefully - missing columns get NULL
-                        conn.register("source_data", native_df)
+                        conn.register("source_data", df_filtered)
                         conn.execute(
                             f"INSERT INTO {self.db_schema}.{table_name} BY NAME SELECT * FROM source_data"
                         )

@@ -399,7 +399,7 @@ class TestS3IOManager:
         monkeypatch.setattr(
             s3_io_manager,
             "_list_unloaded_files",
-            lambda ctx, prefix: [
+            lambda ctx, prefix, model=None: [
                 "extract/binance/ohlcv_1704067200000.json",
                 "extract/binance/ohlcv_1704067300000.json",
             ],
@@ -609,6 +609,7 @@ class TestS3IOManager:
         unloaded = s3_io_manager._list_unloaded_files(
             input_context,  # type: ignore[arg-type]
             "extract/binance/ohlcv",
+            model=None,
         )
 
         assert len(unloaded) == 2
