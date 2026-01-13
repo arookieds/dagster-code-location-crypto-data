@@ -1,7 +1,5 @@
 from typing import TYPE_CHECKING
 
-import duckdb
-
 try:
     from duckdb import IOException
 except ImportError:
@@ -68,6 +66,8 @@ def _get_duckdb_ts(
     exchange_id: str,
     model: type[CryptoModel],
 ) -> list:
+    import duckdb
+
     table: str = model.__tablename__
     schema: str = model.__table_args__["schema"]
 
