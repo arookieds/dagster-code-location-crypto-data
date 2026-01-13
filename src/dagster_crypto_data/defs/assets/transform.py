@@ -123,10 +123,10 @@ def transform_asset_factory(
         io_manager_key=config.io_manager_key,
         ins={
             "raw_data": AssetIn(
-                key=AssetKey(config.source_asset_key),
+                key=AssetKey(config.source_asset_key), metadata={"model": model.__name__}
             ),
         },
-        metadata={"model": model},
+        metadata={"model": model.__name__},
     )
     def build_asset(
         context: AssetExecutionContext, raw_data: dict[str, Any]

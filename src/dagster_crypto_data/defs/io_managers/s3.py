@@ -16,12 +16,14 @@ from dagster import (
     OutputContext,
 )
 from pydantic import Field
-from sqlalchemy import create_engine, text
 
+from dagster_crypto_data.defs import models
+from dagster_crypto_data.defs.resources.database import DatabaseConfig  # noqa: TC001
 from dagster_crypto_data.defs.utils import get_run_info
 
 if TYPE_CHECKING:
     from sqlalchemy.engine import Engine
+    from sqlmodel import SQLModel
 
 
 class S3IOManager(ConfigurableIOManager):
@@ -87,33 +89,9 @@ class S3IOManager(ConfigurableIOManager):
     )
 
     # Optional database configuration for timestamp-based filtering
-    db_host: str | None = Field(
+    database: DatabaseConfig | None = Field(
         default=None,
-        description="Database host for querying max timestamp (optional)",
-    )
-    db_port: int | None = Field(
-        default=None,
-        description="Database port (optional)",
-    )
-    db_name: str | None = Field(
-        default=None,
-        description="Database name (optional)",
-    )
-    db_username: str | None = Field(
-        default=None,
-        description="Database username (optional)",
-    )
-    db_password: str | None = Field(
-        default=None,
-        description="Database password (optional, use EnvVar for security)",
-    )
-    db_schema: str | None = Field(
-        default=None,
-        description="Database schema for target tables (optional)",
-    )
-    target_table_name: str | None = Field(
-        default=None,
-        description="Target table name to query for max timestamp (e.g., 'raw_tickers')",
+        description="Database configuration for querying max timestamp (optional)",
     )
 
     def _get_s3_client(self) -> Any:
@@ -259,58 +237,66 @@ class S3IOManager(ConfigurableIOManager):
             return False
 
     def _get_max_extraction_timestamp(
-        self, context: InputContext, exchange_id: str
+        self,
+        context: InputContext,
+        exchange_id: str,
+        model: type[SQLModel] | None = None,
     ) -> tuple[list[float] | None, bool]:
         """Query database for max extraction_timestamp from target table.
 
         Args:
             context: Dagster input context
+            exchange_id: Exchange identifier to filter by
+            model: Optional SQLModel class defining the target table
 
         Returns:
             Tuple of (max_timestamp, table_is_empty):
             - max_timestamp: Max extraction_timestamp as ISO string, or None if not found
             - table_is_empty: True if table exists but is empty, False otherwise
         """
-        # Check if database and target table are configured
-        if not all(
-            [
-                self.db_host,
-                self.db_port,
-                self.db_name,
-                self.db_username,
-                self.db_password,
-                self.target_table_name,
-            ]
-        ):
+        # Check if database is configured and model is provided
+        if self.database is None or model is None:
             context.log.debug(
-                "Database or target_table_name not configured - skipping timestamp query"
+                "Database not configured or model not provided - using metadata-based filtering"
             )
             return (None, False)
 
         try:
-            # Build connection URL
-            db_url = f"postgresql://{self.db_username}:{self.db_password}@{self.db_host}:{self.db_port}/{self.db_name}"
-            engine: Engine = create_engine(db_url)
+            # Get DatabaseManagement instance from resource
+            db_manager = self.database.get_db_manager()
+            engine: Engine = db_manager.engine
 
-            # Use configured target table name
-            schema_prefix = f"{self.db_schema}." if self.db_schema else ""
-            full_table_name = f"{schema_prefix}{self.target_table_name}"
+            # Get table info from model
+            table_name = model.__tablename__
+            table_args = getattr(model, "__table_args__", {})
+            schema = table_args.get("schema") if isinstance(table_args, dict) else None
+
+            # Build full table name
+            full_table_name = f"{schema}.{table_name}" if schema else table_name
 
             # Query max extraction_timestamp
-            query = text(
-                f"SELECT distinct(extraction_timestamp) as max_ts FROM {full_table_name} where exchange_id = '{exchange_id}'"
-            )
+            from sqlalchemy import text
 
+            query = text(
+                f"""
+                    select distinct rt.extraction_timestamp
+                    from {full_table_name} as rt
+                        where rt.exchange_id  = :exchange_id
+                    group by rt.extraction_timestamp
+                    having rt.extraction_timestamp > (
+                        select max(rt2.extraction_timestamp)
+                        from {full_table_name} as rt2
+                        where rt2.exchange_id = :exchange_id)-3600*6*1000
+                    """
+            )
             with engine.connect() as conn:
-                result = conn.execute(query)
+                result = conn.execute(query, {"exchange_id": exchange_id})
                 rows = result.fetchall()
                 max_ts = [r[0] for r in rows] if rows else None
 
-            engine.dispose()
-
             if max_ts:
                 context.log.info(
-                    f"extraction_timestamp in {full_table_name}: {(max_ts,)}"
+                    f"extraction_timestamp in {full_table_name}: {len(max_ts)} timestamps"
                 )
                 return (list(map(float, max_ts)), False)
             else:
@@ -325,19 +311,23 @@ class S3IOManager(ConfigurableIOManager):
             return (None, False)
 
     def _list_unloaded_files(
-        self, context: InputContext, asset_prefix: str
+        self,
+        context: InputContext,
+        asset_prefix: str,
+        model: type[SQLModel] | None = None,
     ) -> list[str]:
-        """List S3 objects to load based on timestamp comparison.
+        """List S3 objects to load based on timestamp comparison or metadata flags.
 
         Strategy:
-        1. Query database for max extraction_timestamp (if DB configured)
+        1. Query database for max extraction_timestamp (if DB and model configured)
         2. If table is empty: Load ALL files
-        3. If table has data: Load files where extraction_timestamp > max DB timestamp
-        4. Fallback to metadata loaded=false if DB query fails or not configured
+        3. If table has data: Load files where extraction_timestamp not in DB
+        4. Fallback to metadata loaded=false if DB not available
 
         Args:
             context: Dagster input context
             asset_prefix: S3 key prefix for the asset (e.g., "extract/binance/ohlcv")
+            model: Optional SQLModel class defining the target table
 
         Returns:
             List of S3 keys for unloaded files
@@ -347,7 +337,7 @@ class S3IOManager(ConfigurableIOManager):
         exchange_id = asset_prefix.split("/")[0]
         # Get max timestamp from database
         max_db_timestamps, table_is_empty = self._get_max_extraction_timestamp(
-            context, exchange_id
+            context, exchange_id, model
         )
 
         try:
@@ -374,12 +364,12 @@ class S3IOManager(ConfigurableIOManager):
                         file_extraction_ts = float(
                             metadata.get("timestamp")
                         )  # ISO format timestamp
-                        if file_extraction_ts and int(file_extraction_ts) not in map(
-                            int, max_db_timestamps
-                        ):
+                        if file_extraction_ts > min(max_db_timestamps) and int(
+                            file_extraction_ts
+                        ) not in map(int, max_db_timestamps):
                             unloaded_keys.append(key)
                             context.log.debug(
-                                f"File {key} timestamp {int(file_extraction_ts)} not in DB {(max_db_timestamps,)}"
+                                f"File {key} timestamp {int(file_extraction_ts)} not in DB"
                             )
                     # Strategy 3: Fallback to loaded metadata flag
                     else:
@@ -411,6 +401,16 @@ class S3IOManager(ConfigurableIOManager):
         Raises:
             ClientError: If S3 download fails or object doesn't exist
         """
+        # Try to get model from asset metadata (optional for local mode)
+        metadata = getattr(context, "definition_metadata", None) or {}
+        model_name: str = metadata.get("model", "")
+        model = getattr(models, model_name, None) if model_name else None
+
+        if model is None:
+            context.log.info(
+                "Model not found in asset metadata - using metadata-based filtering"
+            )
+
         s3_client = self._get_s3_client()
 
         # Check if running standalone (no upstream output) or with extract
@@ -435,7 +435,7 @@ class S3IOManager(ConfigurableIOManager):
             context.log.info(
                 f"Looking for S3 files with prefix: {asset_path} (upstream asset: {upstream_asset_key.path})"
             )
-            keys_to_load = self._list_unloaded_files(context, asset_path)
+            keys_to_load = self._list_unloaded_files(context, asset_path, model)
 
             if not keys_to_load:
                 context.log.warning(
@@ -530,29 +530,6 @@ class S3IOManager(ConfigurableIOManager):
             except (ValueError, TypeError):
                 # Fallback if timestamps are invalid
                 latest_metadata = metadatas[-1].get("file_metadata", {})
-
-        return {
-            "metadata": latest_metadata,
-            "data": all_records,
-        }
-
-        context.log.info(
-            f"Loaded {len(keys_to_load)} files with {len(all_records)} total records"
-        )
-
-        # Return accumulated records
-        # Note: 'data' is now a list of records, not a dict of dicts
-        latest_metadata = {}
-        if metadatas:
-            # Safely find max timestamp
-            try:
-                latest_entry = max(
-                    metadatas, key=lambda x: float(x.get("timestamp") or 0)
-                )
-                latest_metadata = latest_entry.get("metadata", {})
-            except (ValueError, TypeError):
-                # Fallback if timestamps are invalid
-                latest_metadata = metadatas[-1].get("metadata", {})
 
         return {
             "metadata": latest_metadata,

@@ -120,27 +120,6 @@ class TestDuckDBIOManager:
         with pytest.raises(TypeError, match="DuckDBIOManager expects a DataFrame"):
             duckdb_io_manager.handle_output(output_context, {"not": "a dataframe"})  # type: ignore
 
-    def test_handle_output_replaces_existing_table(
-        self,
-        duckdb_io_manager: DuckDBIOManager,
-        output_context: OutputContext,
-        sample_dataframe: pl.DataFrame,
-    ) -> None:
-        """Test that handle_output replaces existing tables."""
-        # Write first version
-        duckdb_io_manager.handle_output(output_context, sample_dataframe)
-
-        # Write second version with different data
-        updated_df = sample_dataframe.with_columns(pl.lit(2).alias("version"))
-        duckdb_io_manager.handle_output(output_context, updated_df)
-
-        # Load and verify it's the updated version
-        loaded_df = duckdb_io_manager.load_input(
-            build_input_context(asset_key=output_context.asset_key)
-        )
-        assert "version" in loaded_df.columns
-        assert loaded_df["version"][0] == 2
-
     def test_load_input_reads_table(
         self,
         duckdb_io_manager: DuckDBIOManager,
@@ -226,5 +205,190 @@ class TestDuckDBIOManager:
             ).fetch_arrow_table()
             loaded_df = pl.from_arrow(result)
             assert len(loaded_df) == len(sample_dataframe)
+        finally:
+            conn.close()
+
+    def test_get_model_from_context_with_model_metadata(
+        self,
+    ) -> None:
+        """Test _get_model_from_context extracts model from metadata."""
+        from dagster_crypto_data.defs.models import Ticker
+
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": "Ticker"},
+        )
+
+        model = DuckDBIOManager._get_model_from_context(context)
+        assert model is not None
+        assert model is Ticker
+
+    def test_get_model_from_context_returns_none_without_metadata(
+        self,
+    ) -> None:
+        """Test _get_model_from_context returns None without model metadata."""
+        context = build_output_context(asset_key=AssetKey(["test_asset"]))
+
+        model = DuckDBIOManager._get_model_from_context(context)
+        assert model is None
+
+    def test_get_model_from_context_returns_none_with_invalid_model_name(
+        self,
+    ) -> None:
+        """Test _get_model_from_context returns None with invalid model name."""
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": "NonExistentModel"},
+        )
+
+        model = DuckDBIOManager._get_model_from_context(context)
+        assert model is None
+
+    def test_handle_output_with_model_creates_all_columns(
+        self,
+        duckdb_io_manager: DuckDBIOManager,
+        output_context: OutputContext,
+        temp_db_path: Path,
+    ) -> None:
+        """Test handle_output with model creates table with all columns defined."""
+        from dagster_crypto_data.defs.models import Ticker
+
+        # Create context with model metadata
+        context = build_output_context(
+            asset_key=AssetKey(["test_asset"]),
+            definition_metadata={"model": "Ticker"},
+        )
+
+        # Create sample dataframe with only some fields
+        sample_df = pl.DataFrame(
+            {
+                "symbol": ["BTC/USDT", "BTC/USDT"],
+                "ticker_timestamp_ms": [1735689600000, 1735693200000],
+                "last": [50000.0, 50500.0],
+            }
+        )
+
+        duckdb_io_manager.handle_output(context, sample_df)
+
+        # Verify all model columns exist in table
+        import duckdb
+
+        conn = duckdb.connect(str(temp_db_path), read_only=True)
+        try:
+            # Use Ticker's table name, not the asset key
+            table_name = Ticker.__tablename__
+            result = conn.execute(
+                f"SELECT * FROM {duckdb_io_manager.db_schema}.{table_name} LIMIT 0"
+            ).description
+            table_columns = [col[0] for col in result]
+
+            # Check that model fields are in the table
+            # Ticker model should have these fields defined
+            assert "symbol" in table_columns
+            assert "ticker_timestamp_ms" in table_columns
+            assert "last" in table_columns
+            # Verify it has all columns from the model
+            assert len(table_columns) >= 10  # Ticker model has many fields
+        finally:
+            conn.close()
+
+    def test_handle_output_filters_dataframe_columns(
+        self,
+        duckdb_io_manager: DuckDBIOManager,
+        temp_db_path: Path,
+    ) -> None:
+        """Test handle_output filters DataFrame columns to match table schema."""
+        import duckdb
+
+        # Create a table with specific columns
+        conn = duckdb.connect(str(temp_db_path))
+        try:
+            conn.execute(f"CREATE SCHEMA IF NOT EXISTS {duckdb_io_manager.db_schema}")
+            conn.execute(
+                f"""
+                CREATE TABLE {duckdb_io_manager.db_schema}.test_table (
+                    symbol VARCHAR,
+                    price DOUBLE,
+                    timestamp BIGINT
+                )
+            """
+            )
+        finally:
+            conn.close()
+
+        # Create DataFrame with extra columns
+        context = build_output_context(asset_key=AssetKey(["test_table"]))
+        df = pl.DataFrame(
+            {
+                "symbol": ["BTC/USDT", "ETH/USDT"],
+                "price": [50000.0, 2500.0],
+                "timestamp": [1735689600000, 1735693200000],
+                "extra_field": ["extra1", "extra2"],  # Extra column not in table
+            }
+        )
+
+        # This should not raise an error, filtering out extra_field
+        duckdb_io_manager.handle_output(context, df)
+
+        # Verify data was inserted correctly
+        conn = duckdb.connect(str(temp_db_path), read_only=True)
+        try:
+            result = conn.execute(
+                f"SELECT * FROM {duckdb_io_manager.db_schema}.test_table"
+            ).fetch_arrow_table()
+            loaded_df = pl.from_arrow(result)
+            assert len(loaded_df) == 2
+            assert list(loaded_df.columns) == ["symbol", "price", "timestamp"]
+        finally:
+            conn.close()
+
+    def test_create_table_from_model_with_various_types(
+        self,
+        duckdb_io_manager: DuckDBIOManager,
+        output_context: OutputContext,
+        temp_db_path: Path,
+    ) -> None:
+        """Test _create_table_from_model correctly maps Python types to SQL types."""
+        import duckdb
+
+        from dagster_crypto_data.defs.models import Ticker
+
+        conn = duckdb.connect(str(temp_db_path))
+        try:
+            conn.execute(f"CREATE SCHEMA IF NOT EXISTS {duckdb_io_manager.db_schema}")
+
+            # Create table from Ticker model (has various field types)
+            duckdb_io_manager._create_table_from_model(
+                output_context, Ticker, conn, Ticker.__tablename__
+            )
+
+            # Verify table was created
+            exists = conn.execute(
+                f"""
+                SELECT count(*) > 0 FROM duckdb_tables
+                WHERE table_name = '{Ticker.__tablename__}'
+                AND schema_name = '{duckdb_io_manager.db_schema}'
+            """
+            ).fetchone()[0]
+
+            assert exists is True
+
+            # Verify column types
+            result = conn.execute(
+                f"""
+                SELECT column_name, data_type
+                FROM information_schema.columns
+                WHERE table_schema = '{duckdb_io_manager.db_schema}'
+                AND table_name = '{Ticker.__tablename__}'
+            """
+            ).fetchall()
+
+            columns_dict = dict(result)
+
+            # Verify Ticker model columns exist and have correct types
+            assert "symbol" in columns_dict
+            assert "last" in columns_dict
+            assert columns_dict["last"] == "DOUBLE"  # float -> DOUBLE
+            assert columns_dict["symbol"] == "VARCHAR"  # str -> VARCHAR
         finally:
             conn.close()

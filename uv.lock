@@ -567,6 +567,7 @@ name = "dagster-crypto-data"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "adbc-driver-manager" },
     { name = "adbc-driver-postgresql" },
     { name = "boto3" },
     { name = "ccxt" },
@@ -604,6 +605,7 @@ testing = [
 
 [package.metadata]
 requires-dist = [
+    { name = "adbc-driver-manager", specifier = ">=1.9.0" },
     { name = "adbc-driver-postgresql", specifier = ">=1.9.0" },
     { name = "boto3", specifier = ">=1.42.17" },
     { name = "ccxt", specifier = ">=4.5.29" },
