@@ -1,7 +1,6 @@
 """Data models for cryptocurrency market data."""
 
+from dagster_crypto_data.defs.models.base_crypto_model import CryptoModel
 from dagster_crypto_data.defs.models.tickers import Ticker
 
-__all__ = [
-    "Ticker",
-]
+__all__ = ["Ticker", "CryptoModel"]

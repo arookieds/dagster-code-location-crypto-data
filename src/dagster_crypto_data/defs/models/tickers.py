@@ -12,10 +12,12 @@ from __future__ import annotations
 from typing import ClassVar
 
 from sqlalchemy import BigInteger, Column
-from sqlmodel import Field, SQLModel
+from sqlmodel import Field
+
+from dagster_crypto_data.defs.models import CryptoModel
 
 
-class Ticker(SQLModel, table=True):
+class Ticker(CryptoModel, table=True):
     """Ticker data model for cryptocurrency market data.
 
     This model represents the transformed ticker data output from the transform asset.
