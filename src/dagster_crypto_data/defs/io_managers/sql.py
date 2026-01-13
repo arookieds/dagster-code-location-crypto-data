@@ -161,7 +161,16 @@ class SQLIOManager(ConfigurableIOManager):
         """
         # Get metadata from the asset definition (use definition_metadata for Dagster 2.0+)
         metadata = getattr(context, "definition_metadata", None) or {}
-        return metadata.get("model")
+        model_value = metadata.get("model")
+
+        # If it's a string (model name), convert it to the actual class
+        if isinstance(model_value, str):
+            from dagster_crypto_data.defs import models
+
+            return getattr(models, model_value, None)
+
+        # If it's already a class, return it
+        return model_value if isinstance(model_value, type) else None
 
     def _get_table_name(self, context: OutputContext | InputContext) -> str:
         """Get the table name for an asset.
